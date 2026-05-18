@@ -1,0 +1,36 @@
+import Phaser from 'phaser';
+import HomeScene from './scenes/HomeScene.js';
+import CharSelectScene from './scenes/CharSelectScene.js';
+import InstructionsScene from './scenes/InstructionsScene.js';
+import DeckBuildScene from './scenes/DeckBuildScene.js';
+import MapScene from './scenes/MapScene.js';
+import CombatScene from './scenes/CombatScene.js';
+import RewardScene from './scenes/RewardScene.js';
+import CreditsScene from './scenes/CreditsScene.js';
+import OptionsScene from './scenes/OptionsScene.js';
+
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  backgroundColor: '#1a1a2e',
+  parent: document.body,
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  scene: [
+    HomeScene,
+    OptionsScene,
+    CharSelectScene,
+    InstructionsScene,
+    DeckBuildScene,
+    MapScene,
+    CombatScene,
+    RewardScene,
+    CreditsScene,
+  ],
+};
+
+const game = new Phaser.Game(config);
+window.__PHASER_GAME__ = game;
