@@ -6,8 +6,7 @@ import DeckBuildScene from './scenes/DeckBuildScene.js';
 import MapScene from './scenes/MapScene.js';
 import CombatScene from './scenes/CombatScene.js';
 import RewardScene from './scenes/RewardScene.js';
-import CreditsScene from './scenes/CreditsScene.js';
-import OptionsScene from './scenes/OptionsScene.js';
+
 
 const config = {
   type: Phaser.AUTO,
@@ -21,14 +20,12 @@ const config = {
   },
   scene: [
     HomeScene,
-    OptionsScene,
     CharSelectScene,
     InstructionsScene,
     DeckBuildScene,
     MapScene,
     CombatScene,
     RewardScene,
-    CreditsScene,
   ],
 };
 
