@@ -1,3 +1,4 @@
+
 # Math Smash: Card Adventure
 
 Strategic roguelike deck-building game for children (ages 8–14) that combines mathematics learning with card-based combat.
@@ -100,3 +101,5 @@ npm run build
 ```
 
 Output in `dist/` folder — ready for static hosting (GitHub Pages, Netlify, Vercel).
+
+## README GENERATED USING AI TOOLS
