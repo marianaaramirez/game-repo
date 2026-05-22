@@ -56,6 +56,8 @@ export default class CombatScene extends Phaser.Scene {
     this.combatState    = CombatSystem.COMBAT_STATE.SELECT_CARD;
     this.currentProblem = null;
     this.timerStartTime = 0;
+    // Time allowed per problem — higher levels get more time (harder math)
+    this.timerDuration  = TimerSystem.getDuration(this.worldLevel);
     this.selectedCard   = null;
     this.activeDefense  = 0;   // Defense value blocks enemy damage this turn
     this.inputText      = '';  // Accumulates keyboard digits for the answer field
@@ -335,7 +337,8 @@ export default class CombatScene extends Phaser.Scene {
     const elapsed = Date.now() - this.timerStartTime + this.combatContext.timerReduction;
 
     const result = CombatSystem.evaluatePlayerAction(
-      this.selectedCard, this.currentProblem, this.inputText, Math.max(0, elapsed)
+      this.selectedCard, this.currentProblem, this.inputText,
+      Math.max(0, elapsed), this.timerDuration
     );
 
     // Apply double power skill bonus before any other modifiers
@@ -531,15 +534,15 @@ export default class CombatScene extends Phaser.Scene {
     if (!this.timerActive) return;
 
     const elapsed = Date.now() - this.timerStartTime;
-    const ratio   = TimerSystem.getRatio(elapsed);
-    const color   = TimerSystem.getZoneColor(elapsed);
+    const ratio   = TimerSystem.getRatio(elapsed, this.timerDuration);
+    const color   = TimerSystem.getZoneColor(elapsed, this.timerDuration);
 
     // Scale bar width and update color to reflect current time zone
     this.timerBarFill.setDisplaySize(ratio * 500, 18);
     this.timerBarFill.setFillStyle(color);
 
     // Auto-submit with empty answer on timeout (results in 0 effect)
-    if (TimerSystem.isExpired(elapsed)) {
+    if (TimerSystem.isExpired(elapsed, this.timerDuration)) {
       this.timerActive = false;
       this.submitAnswer();
     }

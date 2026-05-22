@@ -5,15 +5,29 @@
  *
  * Zones:
  *   GREEN  (>60% time left) → 100% card effect
- *   YELLOW (30–60% left)    →  75% card effect
+ *   YELLOW (30-60% left)    →  75% card effect
  *   RED    (<30% left)      →  50% card effect
  *   Timeout / wrong answer  →   0% card effect
+ *
+ * The total time per problem depends on the level, since higher levels have
+ * harder math (see getDuration).
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
 
-// Total time allowed per problem in milliseconds (10 seconds)
+// Default time allowed per problem in milliseconds (used as a fallback)
 const TIMER_DURATION = 10000;
+
+/**
+ * Time allowed per problem, per level.
+ * Level 2 and 3 get extra time because their math is harder.
+ *   Level 1: 10s   Level 2: 13s   Level 3: 16s
+ */
+const DURATION_BY_LEVEL = {
+  1: 10000,
+  2: 13000,
+  3: 16000,
+};
 
 /**
  * Zone definitions.
@@ -27,12 +41,22 @@ const ZONES = {
 };
 
 /**
- * Returns the damage multiplier based on elapsed time.
- * {number} elapsed - Milliseconds since the problem was shown
- * returns {number} Multiplier: 1.0, 0.75, 0.5, or 0
+ * Returns the total time allowed for a problem at the given level.
+ * @param {number} worldLevel - 1, 2, or 3
+ * @returns {number} Duration in milliseconds
  */
-function getMultiplier(elapsed) {
-  const ratio = Math.max(0, 1 - elapsed / TIMER_DURATION);
+function getDuration(worldLevel = 1) {
+  return DURATION_BY_LEVEL[worldLevel] || TIMER_DURATION;
+}
+
+/**
+ * Returns the damage multiplier based on elapsed time.
+ * @param {number} elapsed  - Milliseconds since the problem was shown
+ * @param {number} duration - Total time allowed for this problem
+ * @returns {number} Multiplier: 1.0, 0.75, 0.5, or 0
+ */
+function getMultiplier(elapsed, duration = TIMER_DURATION) {
+  const ratio = Math.max(0, 1 - elapsed / duration);
   if (ratio >= ZONES.GREEN.min)  return ZONES.GREEN.multiplier;
   if (ratio >= ZONES.YELLOW.min) return ZONES.YELLOW.multiplier;
   if (ratio > 0)                 return ZONES.RED.multiplier;
@@ -41,11 +65,12 @@ function getMultiplier(elapsed) {
 
 /**
  * Returns the bar color (hex) corresponding to the current timer zone.
- * {number} elapsed - Milliseconds elapsed
- * returns {number} Hex color value
+ * @param {number} elapsed  - Milliseconds elapsed
+ * @param {number} duration - Total time allowed for this problem
+ * @returns {number} Hex color value
  */
-function getZoneColor(elapsed) {
-  const ratio = Math.max(0, 1 - elapsed / TIMER_DURATION);
+function getZoneColor(elapsed, duration = TIMER_DURATION) {
+  const ratio = Math.max(0, 1 - elapsed / duration);
   if (ratio >= ZONES.GREEN.min)  return ZONES.GREEN.color;
   if (ratio >= ZONES.YELLOW.min) return ZONES.YELLOW.color;
   return ZONES.RED.color;
@@ -54,20 +79,30 @@ function getZoneColor(elapsed) {
 /**
  * Returns the remaining time as a ratio from 1.0 (full) to 0.0 (expired).
  * Used to scale the visual width of the timer bar.
- * {number} elapsed
- * returns {number}
+ * @param {number} elapsed
+ * @param {number} duration - Total time allowed for this problem
+ * @returns {number}
  */
-function getRatio(elapsed) {
-  return Math.max(0, 1 - elapsed / TIMER_DURATION);
+function getRatio(elapsed, duration = TIMER_DURATION) {
+  return Math.max(0, 1 - elapsed / duration);
 }
 
 /**
  * Returns true if the timer has run out (player took too long).
- * {number} elapsed
- * returns {boolean}
+ * @param {number} elapsed
+ * @param {number} duration - Total time allowed for this problem
+ * @returns {boolean}
  */
-function isExpired(elapsed) {
-  return elapsed >= TIMER_DURATION;
+function isExpired(elapsed, duration = TIMER_DURATION) {
+  return elapsed >= duration;
 }
 
-export default { getMultiplier, getZoneColor, getRatio, isExpired, TIMER_DURATION, ZONES };
+export default {
+  getDuration,
+  getMultiplier,
+  getZoneColor,
+  getRatio,
+  isExpired,
+  TIMER_DURATION,
+  ZONES,
+};
