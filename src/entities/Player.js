@@ -1,12 +1,17 @@
 /**
  * Player.js
- * Represents the player character. Extends BaseEntity with deck management,
- * skill card collection, leveling, and roguelike progression rules.
+ * Represents the player character. Extends BaseEntity with collection management,
+ * deck building, skill card collection, leveling, and roguelike progression rules.
+ *
+ * Card model:
+ *   - collection : every attack/defense card the player owns
+ *   - deck       : the cards selected for combat, capped at maxDeckSize (4)
+ *   - skillCards : boss-reward skill cards, kept in a SEPARATE slot
+ *                  (they do NOT count toward the 4-card deck limit)
  *
  * Roguelike rules:
  *   - On win:   player levels up (max HP increases, HP fully restored)
- *   - On lose:  normal deck is cleared but all skill cards are kept
- *   - Deck max: 5 cards total (including 1 skill card slot)
+ *   - On lose:  collection and deck are wiped, but all skill cards are kept
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -15,59 +20,97 @@ import BaseEntity from './BaseEntity.js';
 
 export default class Player extends BaseEntity {
   /**
-   * {number} skinIndex - Index of the chosen character skin (0, 1, or 2)
+   * @param {number} skinIndex - Index of the chosen character skin (0, 1, or 2)
    */
   constructor(skinIndex = 0) {
     super('Player', 100, 10);
-    this.skinIndex = skinIndex; // Visual skin selection from CharSelectScene
-    this.level = 1; 
-    this.deck = []; // Normal cards (attack + defense)
-    this.skillCards = []; // Skill cards — kept on defeat
-    this.maxDeckSize = 5; // Maximum cards active in combat at once
+    this.skinIndex   = skinIndex; // Visual skin selection from CharSelectScene
+    this.level       = 1;
+    this.collection  = []; // Every attack/defense card owned by the player
+    this.deck        = []; // Cards selected for combat (max maxDeckSize)
+    this.skillCards  = []; // Skill cards — separate slot, kept on defeat
+    this.maxDeckSize = 4;  // Maximum attack/defense cards active in combat
   }
 
   /**
-   * Adds a normal card to the deck.
-   * {BaseCard} card
+   * Adds a card to the collection.
+   * If the deck still has free slots, the card is auto-selected into it
+   * so newly earned cards are usable right away.
+   * @param {BaseCard} card
    */
   addCard(card) {
-    this.deck.push(card);
+    this.collection.push(card);
+    if (this.deck.length < this.maxDeckSize) {
+      this.deck.push(card);
+    }
   }
+
   /**
-   * Removes a card from the deck by index.
-   * {number} index
+   * Removes a card from both the collection and the deck.
+   * @param {BaseCard} card
    */
-  removeCard(index) {
-    this.deck.splice(index, 1);
+  removeCard(card) {
+    const ci = this.collection.indexOf(card);
+    if (ci >= 0) this.collection.splice(ci, 1);
+    const di = this.deck.indexOf(card);
+    if (di >= 0) this.deck.splice(di, 1);
   }
 
   /**
    * Adds a skill card (obtained by defeating a boss).
-   * Skill cards persist through defeats.
-   * {BaseCard} card
+   * Skill cards persist through defeats and use a separate slot.
+   * @param {BaseCard} card
    */
   addSkillCard(card) {
     this.skillCards.push(card);
   }
 
   /**
-   * Returns a shallow copy of the normal deck.
-   * {BaseCard[]}
+   * Toggles a card's presence in the active deck (used by the deck builder UI).
+   * @param {BaseCard} card
+   * @returns {string} 'added' | 'removed' | 'full' (deck already at max size)
+   */
+  toggleDeckCard(card) {
+    const i = this.deck.indexOf(card);
+    if (i >= 0) {
+      this.deck.splice(i, 1);
+      return 'removed';
+    }
+    if (this.deck.length >= this.maxDeckSize) {
+      return 'full';
+    }
+    this.deck.push(card);
+    return 'added';
+  }
+
+  /**
+   * Returns true if the given card is currently selected in the deck.
+   * @param {BaseCard} card
+   * @returns {boolean}
+   */
+  isInDeck(card) {
+    return this.deck.includes(card);
+  }
+
+  /**
+   * Returns a shallow copy of the selected deck.
+   * @returns {BaseCard[]}
    */
   getDeck() {
     return [...this.deck];
   }
 
-    /**
-   * Returns the combat deck: normal cards + the most recently acquired skill card.
-   * Only the last skill card is active per GDD (1 skill card per deck rule).
-   * Total size is capped at maxDeckSize.
-   * {BaseCard[]}
+  /**
+   * Returns the combat deck: the selected cards (max 4) plus the most recently
+   * acquired skill card. The skill card occupies a separate slot and does not
+   * count toward the 4-card limit.
+   * @returns {BaseCard[]}
    */
   getActiveDeck() {
-    const activeSkill = this.skillCards.length > 0 ? [this.skillCards[this.skillCards.length - 1]] : [];
-    // Fill remaining slots with normal deck cards
-    return [...this.deck.slice(0, this.maxDeckSize - activeSkill.length), ...activeSkill];
+    const activeSkill = this.skillCards.length > 0
+      ? [this.skillCards[this.skillCards.length - 1]]
+      : [];
+    return [...this.deck, ...activeSkill];
   }
 
   /**
@@ -80,21 +123,22 @@ export default class Player extends BaseEntity {
     this.hp = this.maxHp;
   }
 
-   /**
+  /**
    * Called when the player loses a combat (roguelike death handling).
-   * Clears the normal deck but retains all skill cards.
+   * Wipes the collection and deck but retains all skill cards.
    * Resets HP and level for a new run.
-   */ 
+   */
   onDefeat() {
-    this.deck = []; // Normal deck lost
-    this.hp = this.maxHp;
-    this.level = 1;
+    this.collection = []; // Owned cards lost
+    this.deck       = []; // Deck lost
+    this.hp         = this.maxHp;
+    this.level      = 1;
     // skillCards intentionally NOT cleared — roguelike persistence
   }
 
   /**
    * Resets HP to max before starting a new combat encounter.
-   */  
+   */
   resetForCombat() {
     this.hp = this.maxHp;
   }

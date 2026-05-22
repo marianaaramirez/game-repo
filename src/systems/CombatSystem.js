@@ -37,11 +37,12 @@ const COMBAT_STATE = {
  * {object} problem      - The math problem that was generated
  * {string} playerAnswer - The answer typed by the player
  * {number} elapsed      - Milliseconds elapsed since the problem appeared
+ * {number} duration     - Total time allowed for the problem (varies per level)
  * {object} {{ success: boolean, effect: number, multiplier: number }}
  */
-function evaluatePlayerAction(card, problem, playerAnswer, elapsed) {
+function evaluatePlayerAction(card, problem, playerAnswer, elapsed, duration) {
   const correct   = MathSystem.check(problem, playerAnswer);
-  const timedOut  = TimerSystem.isExpired(elapsed);
+  const timedOut  = TimerSystem.isExpired(elapsed, duration);
 
   // Wrong answer or timeout → no effect
   if (!correct || timedOut) {
@@ -49,7 +50,7 @@ function evaluatePlayerAction(card, problem, playerAnswer, elapsed) {
   }
 
   // Scale card's base value by the timer multiplier (1.0, 0.75, or 0.5)
-  const multiplier = TimerSystem.getMultiplier(elapsed);
+  const multiplier = TimerSystem.getMultiplier(elapsed, duration);
   const effect     = Math.round(card.baseValue * multiplier);
 
   return { success: true, effect, multiplier };

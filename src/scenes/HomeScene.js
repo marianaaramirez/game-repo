@@ -1,12 +1,10 @@
 /**
  * HomeScene.js
  * The main menu screen. First scene loaded when the game starts.
- * Displays the game title, animated floating effect, and three navigation buttons.
+ * Displays the game title, an animated floating effect, and the PLAY button.
  *
  * Navigation:
- *   PLAY    → CharSelectScene
- *   OPTIONS → OptionsScene
- *   CREDITS → CreditsScene
+ *   PLAY → CharSelectScene
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -37,17 +35,9 @@ export default class HomeScene extends Phaser.Scene {
       color: '#ffffff',
     }).setOrigin(0.5);
 
-    // Main navigation buttons
-    this.createButton(400, 300, 'PLAY', () => {
+    // Main navigation button
+    this.createButton(400, 360, 'PLAY', () => {
       this.scene.start('CharSelectScene');
-    });
-
-    this.createButton(400, 370, 'OPTIONS', () => {
-      this.scene.start('OptionsScene');
-    });
-
-    this.createButton(400, 440, 'CREDITS', () => {
-      this.scene.start('CreditsScene');
     });
 
     // Idle floating animation on the title — loops forever with sine easing
