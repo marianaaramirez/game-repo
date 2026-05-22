@@ -1,14 +1,20 @@
 /**
  * DeckBuildScene.js
- * Deck overview screen shown before the player enters a map.
- * Displays all cards in the player's current deck (normal + skill cards).
- * On the first run, creates the Player instance and generates a starter deck.
+ * Interactive deck builder shown before entering a level and after every combat.
+ * The player picks which cards from their collection go into the active deck.
  *
- * The scene is also visited when advancing to a new world (worldLevel 2 or 3).
- * In that case the player already has cards, so no new starter deck is created.
+ * Rules:
+ *   - The deck holds at most 4 attack/defense cards (player.maxDeckSize).
+ *   - Skill cards live in a SEPARATE slot and are auto-equipped — they do not
+ *     count toward the 4-card limit.
+ *   - Clicking a collection card toggles it in or out of the deck.
+ *   - ENTER MAP is disabled until the deck has at least one card.
+ *
+ * On the first ever run this scene also creates the Player and the starter
+ * collection (2 attack + 2 defense cards).
  *
  * Navigation:
- *   ENTER MAP → MapScene (passes worldLevel)
+ *   ENTER MAP → MapScene (passes worldLevel; the map is reused if it already exists)
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -18,14 +24,17 @@ import Player from '../entities/Player.js';
 import CardFactory from '../cards/CardFactory.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
 
+// Display names per world level
+const WORLD_NAMES = { 1: 'Ancient Temple', 2: 'Castle', 3: 'Wasteland' };
+
 export default class DeckBuildScene extends Phaser.Scene {
   constructor() {
     super('DeckBuildScene');
   }
 
   /**
-   * Receives worldLevel from the previous scene via scene.start() data parameter.
-   * {{ worldLevel: number }} data
+   * Receives worldLevel from the previous scene (LevelSelectScene or RewardScene).
+   * @param {{ worldLevel: number }} data
    */
   init(data) {
     this.worldLevel = data.worldLevel || 1;
@@ -34,7 +43,7 @@ export default class DeckBuildScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
-    // Create a new Player only if one doesn't already exist in the registry
+    // Create the Player on the first ever run
     let player = this.registry.get('player');
     if (!player) {
       const skinIndex = this.registry.get('selectedSkin') || 0;
@@ -42,90 +51,143 @@ export default class DeckBuildScene extends Phaser.Scene {
       this.registry.set('player', player);
     }
 
-    // Give a starter deck only if the player has no cards (first run or after defeat)
-    if (player.deck.length === 0) {
-      const starterDeck = CardFactory.createStarterDeck(this.worldLevel);
-      starterDeck.forEach((c) => player.addCard(c));
+    // Build the starting collection only the first time (empty collection).
+    // addCard() also auto-fills the deck, so the player starts with a full deck.
+    if (player.collection.length === 0) {
+      const starter = CardFactory.createStarterDeck(this.worldLevel);
+      starter.forEach((c) => player.addCard(c));
     }
 
-    // Header
-    this.add.text(400, 30, 'BUILD YOUR DECK', {
-      fontSize: '28px', fontFamily: 'Arial Black', color: '#ffcc00',
+    this.player = player;
+
+    // --- Header ---
+    this.add.text(400, 28, 'BUILD YOUR DECK', {
+      fontSize: '26px', fontFamily: 'Arial Black', color: '#ffcc00',
       stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.add.text(400, 65, `World ${this.worldLevel} - Level ${player.level}`, {
-      fontSize: '16px', fontFamily: 'Arial', color: '#aaaaaa',
-    }).setOrigin(0.5);
-
-    // World name label
-    const worldNames = { 1: 'Ancient Temple', 2: 'Castle', 3: 'Wasteland' };
-    this.add.text(400, 85, worldNames[this.worldLevel] || 'Unknown', {
+    this.add.text(400, 56, `${WORLD_NAMES[this.worldLevel] || 'Unknown'}    -    Level ${player.level}`, {
       fontSize: '14px', fontFamily: 'Arial', color: '#88aacc',
     }).setOrigin(0.5);
 
-    this.add.text(400, 120, 'Your Cards:', {
-      fontSize: '18px', fontFamily: 'Arial', color: '#ffffff',
+    // Deck counter — green when at least one card is selected, red when empty
+    const deckColor = player.deck.length > 0 ? '#44ff44' : '#ff6666';
+    this.add.text(400, 84,
+      `Deck: ${player.deck.length} / ${player.maxDeckSize}    (click a card to add or remove it)`, {
+        fontSize: '14px', fontFamily: 'Arial Black', color: deckColor,
+      }).setOrigin(0.5);
+
+    // --- Collection grid ---
+    this.renderCollection();
+
+    // Skill cards info line (separate slot, auto-equipped)
+    if (player.skillCards.length > 0) {
+      const names = player.skillCards.map((c) => c.name).join(', ');
+      this.add.text(400, 510, `Skill cards (separate slot, auto-equipped): ${names}`, {
+        fontSize: '11px', fontFamily: 'Arial', color: '#ffaa00',
+        wordWrap: { width: 720 }, align: 'center',
+      }).setOrigin(0.5);
+    }
+
+    // Transient warning message (e.g. deck full)
+    this.warnText = this.add.text(400, 530, '', {
+      fontSize: '12px', fontFamily: 'Arial Black', color: '#ff6666',
     }).setOrigin(0.5);
 
-    // Render all cards (normal deck + skill cards) in a grid layout
-    const allCards  = [...player.deck, ...player.skillCards];
-    const cardWidth = 110;
-    const cardHeight = 150;
-    // Center the first row horizontally based on how many cards are in it
-    const startX = 400 - ((Math.min(allCards.length, 5) - 1) * (cardWidth + 15)) / 2;
+    // --- Enter map button (disabled while the deck is empty) ---
+    const canEnter = player.deck.length > 0;
+    const enterBg = this.add.rectangle(400, 565, 230, 46,
+      canEnter ? 0x44aa44 : 0x555555, 0.95)
+      .setStrokeStyle(2, canEnter ? 0x66ff66 : 0x777777);
 
-    allCards.forEach((card, i) => {
-      // Wrap to new row after every 5 cards
-      const row = Math.floor(i / 5);
-      const col = i % 5;
-      const x   = startX + col * (cardWidth + 15);
-      const y   = 230 + row * (cardHeight + 20);
+    this.add.text(400, 565, canEnter ? 'ENTER MAP' : 'SELECT AT LEAST 1 CARD', {
+      fontSize: '17px', fontFamily: 'Arial Black', color: '#ffffff',
+    }).setOrigin(0.5);
 
-      // Card background — color determined by card type
-      const bg = this.add.rectangle(x, y, cardWidth, cardHeight, card.getColor(), 0.7)
-        .setStrokeStyle(2, 0xffffff);
+    if (canEnter) {
+      enterBg.setInteractive({ useHandCursor: true });
+      enterBg.on('pointerdown', () => {
+        this.scene.start('MapScene', { worldLevel: this.worldLevel });
+      });
+    }
+  }
 
-      // Type label badge (ATK / DEF / SKL)
+  /**
+   * Renders every card in the collection as a clickable grid tile.
+   * Cards currently in the deck are highlighted; the rest are dimmed.
+   * Clicking a card toggles it and restarts the scene to redraw.
+   */
+  renderCollection() {
+    const cards   = this.player.collection;
+    const cardW   = 108;
+    const cardH   = 148;
+    const perRow  = 6;
+    const gapX    = 8;
+    const gapY    = 14;
+    const startX  = 400 - ((perRow - 1) * (cardW + gapX)) / 2;
+    const startY  = 188; // Y center of the first row
+
+    cards.forEach((card, i) => {
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const x   = startX + col * (cardW + gapX);
+      const y   = startY + row * (cardH + gapY);
+
+      const inDeck = this.player.isInDeck(card);
+
+      // Selected cards are bright with a gold border; unselected are dimmed
+      const bg = this.add.rectangle(x, y, cardW, cardH, card.getColor(),
+        inDeck ? 0.85 : 0.32)
+        .setStrokeStyle(inDeck ? 4 : 2, inDeck ? 0xffcc00 : 0x666666)
+        .setInteractive({ useHandCursor: true });
+
+      // Type badge (ATK / DEF / SKL)
       let typeLabel = 'ATK';
       if (card.type === CARD_TYPES.DEFENSE) typeLabel = 'DEF';
       if (card.type === CARD_TYPES.SKILL)   typeLabel = 'SKL';
 
-      this.add.text(x, y - 55, typeLabel, {
-        fontSize: '12px', fontFamily: 'Arial Black', color: '#ffffff',
+      this.add.text(x, y - 56, typeLabel, {
+        fontSize: '11px', fontFamily: 'Arial Black', color: '#ffffff',
         backgroundColor: '#00000088', padding: { x: 4, y: 2 },
       }).setOrigin(0.5);
 
+      // "IN DECK" tag on selected cards
+      if (inDeck) {
+        this.add.text(x + 30, y - 56, 'IN DECK', {
+          fontSize: '9px', fontFamily: 'Arial Black', color: '#1a1a2e',
+          backgroundColor: '#ffcc00', padding: { x: 3, y: 1 },
+        }).setOrigin(0.5);
+      }
+
       // Card name
-      this.add.text(x, y - 20, card.name, {
+      this.add.text(x, y - 26, card.name, {
         fontSize: '12px', fontFamily: 'Arial Black', color: '#ffffff',
-        wordWrap: { width: cardWidth - 10 }, align: 'center',
+        wordWrap: { width: cardW - 10 }, align: 'center',
       }).setOrigin(0.5);
 
-      // Power value (skill cards have baseValue 0, so omit the label for them)
+      // Power value (skill cards have baseValue 0, so it is omitted for them)
       if (card.baseValue > 0) {
-        this.add.text(x, y + 15, `Power: ${card.baseValue}`, {
+        this.add.text(x, y + 6, `Power: ${card.baseValue}`, {
           fontSize: '11px', fontFamily: 'Arial', color: '#ffdd88',
         }).setOrigin(0.5);
       }
 
       // Card description
-      this.add.text(x, y + 45, card.description, {
-        fontSize: '9px', fontFamily: 'Arial', color: '#cccccc',
-        wordWrap: { width: cardWidth - 10 }, align: 'center',
+      this.add.text(x, y + 40, card.description, {
+        fontSize: '9px', fontFamily: 'Arial', color: '#dddddd',
+        wordWrap: { width: cardW - 10 }, align: 'center',
       }).setOrigin(0.5);
-    });
 
-    // Enter map button
-    const startBg = this.add.rectangle(400, 550, 220, 50, 0x44aa44, 0.9)
-      .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0x66ff66);
-    this.add.text(400, 550, 'ENTER MAP', {
-      fontSize: '20px', fontFamily: 'Arial Black', color: '#ffffff',
-    }).setOrigin(0.5);
-
-    startBg.on('pointerdown', () => {
-      this.scene.start('MapScene', { worldLevel: this.worldLevel });
+      // Click toggles the card in/out of the deck
+      bg.on('pointerdown', () => {
+        const result = this.player.toggleDeckCard(card);
+        if (result === 'full') {
+          this.warnText.setText(`Deck is full (max ${this.player.maxDeckSize}). Remove a card first.`);
+          return;
+        }
+        // Redraw the scene to reflect the new deck selection
+        this.scene.restart();
+      });
     });
   }
 }

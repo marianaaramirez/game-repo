@@ -1,3 +1,17 @@
+/**
+ * RewardScene.js
+ * Reward screen shown after winning a combat or opening a reward chest.
+ *
+ * Reward rules:
+ *   - Boss win:   grants a skill card (separate slot), marks the level cleared,
+ *                 then returns to LevelSelectScene.
+ *   - Normal win: grants an attack/defense card, then goes to DeckBuildScene so
+ *                 the player can reorganize the deck before continuing the map.
+ *   - Chest:      60% chance of a card, 40% chance of an HP heal.
+ *
+ * AI tool used for code commenting: Claude (Anthropic)
+ */
+
 import Phaser from 'phaser';
 import CardFactory from '../cards/CardFactory.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
@@ -7,9 +21,12 @@ export default class RewardScene extends Phaser.Scene {
     super('RewardScene');
   }
 
+  /**
+   * @param {{ worldLevel: number, isBoss?: boolean, chestReward?: boolean }} data
+   */
   init(data) {
-    this.worldLevel = data.worldLevel || 1;
-    this.isBoss = data.isBoss || false;
+    this.worldLevel  = data.worldLevel  || 1;
+    this.isBoss      = data.isBoss      || false;
     this.chestReward = data.chestReward || false;
   }
 
@@ -18,17 +35,20 @@ export default class RewardScene extends Phaser.Scene {
 
     const player = this.registry.get('player');
 
+    // Title varies by reward source
     let title = 'VICTORY REWARD!';
     if (this.chestReward) title = 'CHEST REWARD!';
-    if (this.isBoss) title = 'BOSS DEFEATED!';
+    if (this.isBoss)      title = 'BOSS DEFEATED!';
 
     this.add.text(400, 60, title, {
       fontSize: '32px', fontFamily: 'Arial Black', color: '#ffcc00',
       stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5);
 
+    // --- Grant the reward ---
     let newCard;
     if (this.isBoss) {
+      // Boss reward: a skill card (kept in the separate skill slot)
       newCard = CardFactory.createBossReward();
       player.addSkillCard(newCard);
 
@@ -36,8 +56,8 @@ export default class RewardScene extends Phaser.Scene {
         fontSize: '20px', fontFamily: 'Arial', color: '#ffaa00',
       }).setOrigin(0.5);
     } else if (this.chestReward) {
-      const roll = Math.random();
-      if (roll < 0.6) {
+      // Chest: either a card (60%) or an HP heal (40%)
+      if (Math.random() < 0.6) {
         newCard = CardFactory.createRewardCard(this.worldLevel);
         player.addCard(newCard);
       } else {
@@ -49,14 +69,16 @@ export default class RewardScene extends Phaser.Scene {
         }).setOrigin(0.5);
       }
     } else {
+      // Normal combat win: an attack/defense card
       newCard = CardFactory.createRewardCard(this.worldLevel);
       player.addCard(newCard);
     }
 
+    // --- Render the awarded card ---
     if (newCard) {
       const x = 400;
       const y = 300;
-      const cardWidth = 160;
+      const cardWidth  = 160;
       const cardHeight = 220;
 
       this.add.rectangle(x, y, cardWidth, cardHeight, newCard.getColor(), 0.8)
@@ -64,7 +86,7 @@ export default class RewardScene extends Phaser.Scene {
 
       let typeLabel = 'ATK';
       if (newCard.type === CARD_TYPES.DEFENSE) typeLabel = 'DEF';
-      if (newCard.type === CARD_TYPES.SKILL) typeLabel = 'SKL';
+      if (newCard.type === CARD_TYPES.SKILL)   typeLabel = 'SKL';
 
       this.add.text(x, y - 80, typeLabel, {
         fontSize: '14px', fontFamily: 'Arial Black', color: '#ffffff',
@@ -88,39 +110,35 @@ export default class RewardScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
-    this.add.text(400, 450, `HP: ${player.hp}/${player.maxHp}  Level: ${player.level}`, {
+    // Player status
+    this.add.text(400, 450, `HP: ${player.hp}/${player.maxHp}    Level: ${player.level}`, {
       fontSize: '16px', fontFamily: 'Arial', color: '#aaaaaa',
     }).setOrigin(0.5);
 
-    const continueBg = this.add.rectangle(400, 530, 220, 50, 0x44aa44, 0.9)
+    // --- Continue button ---
+    const continueBg = this.add.rectangle(400, 530, 240, 50, 0x44aa44, 0.9)
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0x66ff66);
 
-    let btnLabel = 'CONTINUE';
-    if (this.isBoss && this.worldLevel < 3) {
-      btnLabel = 'NEXT WORLD';
-    } else if (this.isBoss && this.worldLevel >= 3) {
-      btnLabel = 'YOU WIN!';
-    }
-
+    // Boss → back to level select; otherwise → deck builder to reorganize
+    const btnLabel = this.isBoss ? 'BACK TO LEVELS' : 'CONTINUE';
     this.add.text(400, 530, btnLabel, {
       fontSize: '18px', fontFamily: 'Arial Black', color: '#ffffff',
     }).setOrigin(0.5);
 
     continueBg.on('pointerdown', () => {
-      if (this.isBoss && this.worldLevel >= 3) {
-        this.registry.set('player', null);
-        this.registry.set('currentMap', null);
-        this.scene.start('HomeScene');
-        return;
-      }
-
       if (this.isBoss) {
-        const nextWorld = this.worldLevel + 1;
+        // Record this level as cleared so LevelSelectScene shows the CLEARED tag
+        const cleared = this.registry.get('clearedLevels') || [];
+        if (!cleared.includes(this.worldLevel)) {
+          cleared.push(this.worldLevel);
+          this.registry.set('clearedLevels', cleared);
+        }
         this.registry.set('currentMap', null);
-        this.scene.start('DeckBuildScene', { worldLevel: nextWorld });
+        this.scene.start('LevelSelectScene');
       } else {
-        this.scene.start('MapScene', { worldLevel: this.worldLevel });
+        // Reorganize the deck, then continue the current map
+        this.scene.start('DeckBuildScene', { worldLevel: this.worldLevel });
       }
     });
   }

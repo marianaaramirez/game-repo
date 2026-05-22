@@ -1,107 +1,131 @@
 /**
  * MathSystem.js
  * Generates and validates math problems for combat activation.
- * Difficulty scales with world level: world 1 = addition/subtraction,
- * world 2 = multiplication/division, world 3 = all operations mixed.
+ *
+ * Difficulty is fixed per level (the player picks the level on the level-select screen):
+ *   Level 1 (Ancient Temple): 2-digit addition and subtraction
+ *   Level 2 (Castle):         2-digit multiplication and division
+ *   Level 3 (Wasteland):      mixed expressions combining +/- with x and /,
+ *                             evaluated with operator precedence (e.g. 25 + 50 x 6)
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
 
 // Enum of supported math operations
 const OPERATIONS = {
-  ADDITION: 'addition',
-  SUBTRACTION: 'subtraction',
+  ADDITION:       'addition',
+  SUBTRACTION:    'subtraction',
   MULTIPLICATION: 'multiplication',
-  DIVISION: 'division',
-  MIXED: 'mixed',
-};
-
-// Maps each world level to the operations that can appear in that world
-const DIFFICULTY = {
-  1: [OPERATIONS.ADDITION, OPERATIONS.SUBTRACTION],
-  2: [OPERATIONS.MULTIPLICATION, OPERATIONS.DIVISION],
-  3: [OPERATIONS.ADDITION, OPERATIONS.SUBTRACTION, OPERATIONS.MULTIPLICATION, OPERATIONS.DIVISION],
+  DIVISION:       'division',
+  MIXED:          'mixed',
 };
 
 /**
  * Returns a random integer between min and max (inclusive).
- * {number} min
- * {number} max
  */
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 /**
- * Generates a math problem appropriate for the given world level.
- * For division, operands are chosen so the result is always a whole number.
- * {number} worldLevel - 1, 2, or 3
- * returns {{ text: string, answer: number, operation: string }}
+ * Level 1 — 2-digit addition or subtraction.
+ * Subtraction keeps both operands 2-digit and the result non-negative.
+ * @returns {{ text: string, answer: number, operation: string }}
  */
-function generate(worldLevel = 1) {
-  // Pick a random operation allowed for this world level
-  const ops = DIFFICULTY[worldLevel] || DIFFICULTY[1];
-  const op = ops[randInt(0, ops.length - 1)];
+function generateLevel1() {
+  if (Math.random() < 0.5) {
+    const a = randInt(10, 99);
+    const b = randInt(10, 99);
+    return { text: `${a} + ${b}`, answer: a + b, operation: OPERATIONS.ADDITION };
+  }
+  // Subtraction: a is the larger operand so the answer stays positive
+  const a = randInt(20, 99);
+  const b = randInt(10, a);
+  return { text: `${a} - ${b}`, answer: a - b, operation: OPERATIONS.SUBTRACTION };
+}
 
-  let a, b, answer, symbol;
+/**
+ * Level 2 — 2-digit multiplication or division.
+ * Multiplication: a 2-digit number times a 1-digit number.
+ * Division: built backwards so the dividend is 2-digit and the answer is whole.
+ * @returns {{ text: string, answer: number, operation: string }}
+ */
+function generateLevel2() {
+  if (Math.random() < 0.5) {
+    const a = randInt(10, 99); // 2-digit operand
+    const b = randInt(2, 9);   // 1-digit operand
+    return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
+  }
+  // Division: pick divisor and quotient, then derive the dividend
+  const divisor = randInt(2, 9);
+  let quotient  = randInt(2, 9);
+  let dividend  = divisor * quotient;
+  // Make sure the dividend has 2 digits
+  while (dividend < 10) {
+    quotient = randInt(2, 9);
+    dividend = divisor * quotient;
+  }
+  return { text: `${dividend} / ${divisor}`, answer: quotient, operation: OPERATIONS.DIVISION };
+}
 
-  switch (op) {
-    case OPERATIONS.ADDITION:
-      // Numbers grow larger at higher world levels
-      a = randInt(1, 10 + worldLevel * 5);
-      b = randInt(1, 10 + worldLevel * 5);
-      answer = a + b;
-      symbol = '+';
-      break;
+/**
+ * Level 3 — mixed expression of the form  A (+/-) B (x or /) C.
+ * The x / part is evaluated first (operator precedence), exactly like 25 + 50 x 6.
+ * @returns {{ text: string, answer: number, operation: string }}
+ */
+function generateLevel3() {
+  const a = randInt(10, 99);
 
-    case OPERATIONS.SUBTRACTION:
-      // b is always <= a to avoid negative answers
-      a = randInt(5, 15 + worldLevel * 5);
-      b = randInt(1, a);
-      answer = a - b;
-      symbol = '-';
-      break;
-
-    case OPERATIONS.MULTIPLICATION:
-      a = randInt(2, 5 + worldLevel * 2);
-      b = randInt(2, 5 + worldLevel * 2);
-      answer = a * b;
-      symbol = 'x';
-      break;
-
-    case OPERATIONS.DIVISION:
-      // Build division backwards: pick divisor and quotient, compute dividend
-      // This guarantees a clean whole-number answer
-      b = randInt(2, 5 + worldLevel);
-      answer = randInt(2, 10);
-      a = b * answer;
-      symbol = '/';
-      break;
-
-    default:
-      // Fallback to simple addition
-      a = randInt(1, 10);
-      b = randInt(1, 10);
-      answer = a + b;
-      symbol = '+';
+  if (Math.random() < 0.5) {
+    // A + B x C  — multiplication first, so the operator before it is always +
+    const b = randInt(10, 99);
+    const c = randInt(2, 9);
+    return {
+      text: `${a} + ${b} x ${c}`,
+      answer: a + b * c,
+      operation: OPERATIONS.MIXED,
+    };
   }
 
-  return {
-    text: `${a} ${symbol} ${b}`,  // Display string shown to the player
-    answer,                        // Correct numeric answer
-    operation: op,                 // Operation type used
-  };
+  // A (+/-) B / C  — division first; build B backwards so B / C is whole
+  const c = randInt(2, 9);
+  let q   = randInt(2, 9);
+  let b   = c * q;
+  while (b < 10) { // keep B 2-digit
+    q = randInt(2, 9);
+    b = c * q;
+  }
+  const sub = q; // value of the B / C part
+
+  if (Math.random() < 0.5) {
+    return { text: `${a} + ${b} / ${c}`, answer: a + sub, operation: OPERATIONS.MIXED };
+  }
+  // a is at least 10 and sub is at most 9, so a - sub is always positive
+  return { text: `${a} - ${b} / ${c}`, answer: a - sub, operation: OPERATIONS.MIXED };
+}
+
+/**
+ * Generates a math problem for the given level.
+ * @param {number} worldLevel - 1, 2, or 3
+ * @returns {{ text: string, answer: number, operation: string }}
+ */
+function generate(worldLevel = 1) {
+  switch (worldLevel) {
+    case 2:  return generateLevel2();
+    case 3:  return generateLevel3();
+    case 1:
+    default: return generateLevel1();
+  }
 }
 
 /**
  * Checks whether the player's answer matches the correct answer.
- * Parses the player input as an integer before comparing.
- * {{ answer: number }} problem
- * {string|number} playerAnswer
- * returns {boolean}
+ * @param {{ answer: number }} problem
+ * @param {string|number} playerAnswer
+ * @returns {boolean}
  */
 function check(problem, playerAnswer) {
-  return parseInt(playerAnswer) === problem.answer;
+  return parseInt(playerAnswer, 10) === problem.answer;
 }
 
-export default { generate, check, OPERATIONS, DIFFICULTY };
+export default { generate, check, OPERATIONS };

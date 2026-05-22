@@ -1,11 +1,11 @@
 /**
  * InstructionsScene.js
- * Tutorial screen shown once before the player's first run.
- * Explains all core mechanics: controls, combat flow, timer bar, card types,
- * and the win/lose progression system.
+ * Tutorial screen shown before the player reaches the level-select screen.
+ * Explains controls, the three levels and their difficulty, the combat flow,
+ * and the card / deck system.
  *
  * Navigation:
- *   START ADVENTURE → DeckBuildScene (worldLevel: 1)
+ *   START ADVENTURE → LevelSelectScene
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -32,23 +32,19 @@ export default class InstructionsScene extends Phaser.Scene {
     const instructions = [
       {
         title: 'Controls',
-        text: 'Mouse: Select cards & navigate\nKeyboard: Type math answers & confirm with Enter'
+        text: 'Mouse: select cards and navigate\nKeyboard: type math answers, Enter to confirm',
+      },
+      {
+        title: 'Levels',
+        text: 'Level 1: 2-digit addition and subtraction\nLevel 2: 2-digit multiplication and division\nLevel 3: mixed operations, e.g. 25 + 50 x 6',
       },
       {
         title: 'Combat',
-        text: '1. Select a card from your deck\n2. Solve the math problem that appears\n3. Type your answer and press Enter\n4. Card effect depends on speed & accuracy'
+        text: 'Pick a card, then solve the math problem\nAnswer fast: green 100%, yellow 75%, red 50%\nWrong answer or timeout: no effect',
       },
       {
-        title: 'Timer Bar',
-        text: 'GREEN = 100% effect\nYELLOW = 75% effect\nRED = 50% effect\nTimeout = 0% effect'
-      },
-      {
-        title: 'Cards',
-        text: 'Attack: Deal damage to enemies\nDefense: Block incoming damage\nSkill: Special abilities (1 per deck)'
-      },
-      {
-        title: 'Win / Lose',
-        text: 'Win: Gain new card + level up\nBeat boss: Unlock skill card\nLose: Keep skill cards, lose normal deck'
+        title: 'Cards & Deck',
+        text: 'Attack: damage; some heal you or cause recoil\nDefense: block; some heal or counter\nSkill: boss abilities (separate slot)\nDeck: choose up to 4 cards, change it anytime',
       },
     ];
 
@@ -66,11 +62,11 @@ export default class InstructionsScene extends Phaser.Scene {
         fontSize: '14px', fontFamily: 'Arial', color: '#cccccc',
         lineSpacing: 4,
       });
-      // Advance Y by line count × line height + spacing between sections
+      // Advance Y by line count x line height + spacing between sections
       yPos += section.text.split('\n').length * 20 + 15;
     });
 
-    // Start button — launches world 1
+    // Start button — goes to the level-select screen
     const playBg = this.add.rectangle(400, 550, 200, 50, 0x44aa44, 0.9)
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0x66ff66);
@@ -79,7 +75,7 @@ export default class InstructionsScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     playBg.on('pointerdown', () => {
-      this.scene.start('DeckBuildScene', { worldLevel: 1 });
+      this.scene.start('LevelSelectScene');
     });
   }
 }

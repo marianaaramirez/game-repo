@@ -1,9 +1,12 @@
 /**
  * MapSystem.js
- * Generates procedural branching maps for each world.
+ * Generates branching maps for each world.
  * Each map is a directed graph of nodes. Node types: BATTLE, CHEST, BOSS.
  * The player starts at node 0 and must reach the BOSS node to clear the world.
  * Chest nodes are randomly assigned as REWARD or TRAP at generation time.
+ *
+ * World 1 (Ancient Temple) uses a hand-authored diamond/branching layout.
+ * Worlds 2 and 3 use the procedural column-based generator.
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -22,15 +25,65 @@ const CHEST_TYPES = {
 };
 
 /**
- * Generates a new map for the given world level.
- * Node count increases with world level to add more encounters.
- * Nodes are laid out in columns; each node connects forward to the next column.
- *
- * {number} worldLevel - 1, 2, or 3
- * returns {{ nodes: object[], currentNode: number, worldLevel: number }}
+ * Picks a random chest subtype (reward or trap).
+ * @returns {string}
  */
-function generateMap(worldLevel = 1) {
-  const nodeCount = 5 + worldLevel; // World 1: 6 nodes, World 2: 7, World 3: 8
+function randomChestType() {
+  return Math.random() < 0.5 ? CHEST_TYPES.REWARD : CHEST_TYPES.TRAP;
+}
+
+/**
+ * Hand-authored map for World 1 (Ancient Temple).
+ * Nodes are arranged in a wide diamond/branching shape so the layout looks
+ * clearly different from the procedural column grid used by worlds 2 and 3.
+ *
+ *   Layout (left to right):
+ *     0 start ─┬─ 1 ─┬─ 3 ── 6 ─┐
+ *              │     └─ 4 ─┬────┤
+ *              └─ 2 ─┬─────┘    │
+ *                    └─ 5 ── 7 ─┴─ 8 boss
+ *
+ * @returns {{ nodes: object[], currentNode: number, worldLevel: number }}
+ */
+function generateWorld1Map() {
+  // [id, type, x, y, connections]
+  const layout = [
+    [0, NODE_TYPES.BATTLE,  90, 300, [1, 2]],
+    [1, NODE_TYPES.BATTLE, 240, 160, [3, 4]],
+    [2, NODE_TYPES.CHEST,  240, 440, [4, 5]],
+    [3, NODE_TYPES.CHEST,  390, 110, [6]],
+    [4, NODE_TYPES.BATTLE, 390, 300, [6, 7]],
+    [5, NODE_TYPES.BATTLE, 390, 490, [7]],
+    [6, NODE_TYPES.BATTLE, 550, 200, [8]],
+    [7, NODE_TYPES.CHEST,  550, 400, [8]],
+    [8, NODE_TYPES.BOSS,   710, 300, []],
+  ];
+
+  const nodes = layout.map(([id, type, x, y, connections]) => ({
+    id,
+    type,
+    x,
+    y,
+    connections,
+    // Chest nodes get a random subtype; other node types have none
+    chestType: type === NODE_TYPES.CHEST ? randomChestType() : null,
+    completed: false,
+    worldLevel: 1,
+  }));
+
+  return { nodes, currentNode: 0, worldLevel: 1 };
+}
+
+/**
+ * Procedurally generates a map for worlds 2 and 3.
+ * Node count increases with world level. Nodes are laid out in columns;
+ * each node connects forward to every node in the next column.
+ *
+ * @param {number} worldLevel - 2 or 3
+ * @returns {{ nodes: object[], currentNode: number, worldLevel: number }}
+ */
+function generateProceduralMap(worldLevel) {
+  const nodeCount = 5 + worldLevel; // World 2: 7 nodes, World 3: 8
   const nodes = [];
 
   // Node 0: always a battle, always the starting point
@@ -46,13 +99,7 @@ function generateMap(worldLevel = 1) {
 
   // Middle nodes: randomly battle (60%) or chest (40%)
   for (let i = 1; i < nodeCount - 1; i++) {
-    const roll = Math.random();
-    let type;
-    if (roll < 0.6) {
-      type = NODE_TYPES.BATTLE;
-    } else {
-      type = NODE_TYPES.CHEST;
-    }
+    const type = Math.random() < 0.6 ? NODE_TYPES.BATTLE : NODE_TYPES.CHEST;
 
     // Calculate grid position: 2 rows, columns advance every 2 nodes
     const col = Math.floor((i - 1) / 2) + 1;
@@ -69,7 +116,7 @@ function generateMap(worldLevel = 1) {
         connections.push(j);
       }
     }
-    // If no next column exists, connect directly to boss
+    // If no next column exists, connect directly to the boss
     if (connections.length === 0) {
       connections.push(nodeCount - 1);
     }
@@ -77,10 +124,7 @@ function generateMap(worldLevel = 1) {
     nodes.push({
       id: i,
       type,
-      // Chest nodes get a random subtype (reward or trap)
-      chestType: type === NODE_TYPES.CHEST
-        ? (Math.random() < 0.5 ? CHEST_TYPES.REWARD : CHEST_TYPES.TRAP)
-        : null,
+      chestType: type === NODE_TYPES.CHEST ? randomChestType() : null,
       x,
       y,
       connections,
@@ -95,7 +139,7 @@ function generateMap(worldLevel = 1) {
     type: NODE_TYPES.BOSS,
     x: 100 + Math.ceil((nodeCount - 2) / 2 + 1) * 120,
     y: 300,
-    connections: [], // No connections after boss
+    connections: [],
     completed: false,
     worldLevel,
   });
@@ -104,9 +148,22 @@ function generateMap(worldLevel = 1) {
 }
 
 /**
+ * Generates a new map for the given world level.
+ * World 1 uses a fixed hand-authored layout; worlds 2 and 3 are procedural.
+ * @param {number} worldLevel - 1, 2, or 3
+ * @returns {{ nodes: object[], currentNode: number, worldLevel: number }}
+ */
+function generateMap(worldLevel = 1) {
+  if (worldLevel === 1) {
+    return generateWorld1Map();
+  }
+  return generateProceduralMap(worldLevel);
+}
+
+/**
  * Returns the list of nodes the player can navigate to from the current position.
- * {{ nodes: object[], currentNode: number }} map
- * returns {object[]} Array of available node objects
+ * @param {{ nodes: object[], currentNode: number }} map
+ * @returns {object[]} Array of available node objects
  */
 function getAvailableNodes(map) {
   const current = map.nodes[map.currentNode];
