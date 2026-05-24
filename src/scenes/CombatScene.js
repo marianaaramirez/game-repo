@@ -287,6 +287,10 @@ export default class CombatScene extends Phaser.Scene {
 
     // Attack / Defense cards: generate a math problem and start the timer
     this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
+
+    // Lock all cards — no switching allowed once problem is shown
+    this.cardObjects.forEach((obj) => obj.disableInteractive());
+
     this.currentProblem = MathSystem.generate(this.worldLevel);
     this.problemText.setText(`${this.currentProblem.text} = ?`);
     this.inputText = '';
