@@ -463,6 +463,10 @@ export default class CombatScene extends Phaser.Scene {
     this.messageText.setText('');
     this.selectedCard = null;
 
+    // Clear per-turn card disable flags so they don't persist beyond one turn
+    this.combatContext.disabledCardIndex = -1;
+    this.combatContext.lockedCardIndex   = -1;
+
     // Destroy old card GameObjects and redraw to reflect any state changes
     this.cardObjects.forEach((obj) => obj.destroy());
     this.cardObjects = [];
