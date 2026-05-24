@@ -287,6 +287,10 @@ export default class CombatScene extends Phaser.Scene {
 
     // Attack / Defense cards: generate a math problem and start the timer
     this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
+
+    // Lock all cards — no switching allowed once problem is shown
+    this.cardObjects.forEach((obj) => obj.disableInteractive());
+
     this.currentProblem = MathSystem.generate(this.worldLevel);
     this.problemText.setText(`${this.currentProblem.text} = ?`);
     this.inputText = '';
@@ -458,6 +462,10 @@ export default class CombatScene extends Phaser.Scene {
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
+
+    // Clear per-turn card disable flags so they don't persist beyond one turn
+    this.combatContext.disabledCardIndex = -1;
+    this.combatContext.lockedCardIndex   = -1;
 
     // Destroy old card GameObjects and redraw to reflect any state changes
     this.cardObjects.forEach((obj) => obj.destroy());
