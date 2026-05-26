@@ -38,8 +38,8 @@ export default class DefenseCard extends BaseCard {
     let message = `${this.name} blocks ${effectValue} damage!`;
 
     if (this.special === 'heal') {
-      // Restore HP equal to half of the block value
-      const healed = Math.round(effectValue * 0.5);
+      // Restore HP equal to 75% of the block value
+      const healed = Math.round(effectValue * 0.75);
       player.heal(healed);
       message += ` Restored ${healed} HP!`;
     } else if (this.special === 'counter') {

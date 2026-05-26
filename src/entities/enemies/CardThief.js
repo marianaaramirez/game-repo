@@ -17,7 +17,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class CardThief extends BaseEnemy {
   constructor() {
-    super('Card Thief', 25, 4, 'Steal Card', 'Locks one card until the player answers correctly');
+    super('Card Thief', 50, 4, 'Steal Card', 'Locks one card until the player answers correctly');
     this.color = 0xaa8800; // Gold / amber
   }
 

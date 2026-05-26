@@ -8,7 +8,7 @@
  */
 
 import { getRandomAttackCard } from './AttackCard.js';
-import { getRandomDefenseCard } from './DefenseCard.js';
+import { getRandomDefenseCard, DEFENSE_CARDS } from './DefenseCard.js';
 import { getRandomSkillCard } from './SkillCard.js';
 /**
  * Creates the initial deck for a new run.
@@ -17,10 +17,12 @@ import { getRandomSkillCard } from './SkillCard.js';
  * {BaseCard[]} Array of 4 cards
  */
 function createStarterDeck(worldLevel = 1) {
+  // Always include the heal defense card so players learn that mechanic from turn 1
+  const healCard = DEFENSE_CARDS[worldLevel]?.[2]?.() || DEFENSE_CARDS[1][2]();
   return [
     getRandomAttackCard(worldLevel),
     getRandomAttackCard(worldLevel),
-    getRandomDefenseCard(worldLevel),
+    healCard,
     getRandomDefenseCard(worldLevel),
   ];
 }
