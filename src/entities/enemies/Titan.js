@@ -19,7 +19,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class Titan extends BaseEnemy {
   constructor() {
-    super('Titan', 120, 15, 'Earth Smash', 'Deals heavy damage but has a delay');
+    super('Titan', 200, 15, 'Earth Smash', 'Deals heavy damage but has a delay');
     this.isBoss   = true;
     this.color    = 0x664400; // Brown / earth tone
     this.charging = false;    // True while preparing Earth Smash

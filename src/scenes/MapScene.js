@@ -165,16 +165,16 @@ export default class MapScene extends Phaser.Scene {
       const enemy = EnemyFactory.createRandomEnemy();
       this.registry.set('currentEnemy', enemy);
       this.registry.set('isBoss', false);
-      this.scene.start('CombatScene', { worldLevel: this.worldLevel });
+      this.scene.start('CombatScene', { worldLevel: this.worldLevel, nodeIndex: node.id });
 
     } else if (node.type === MapSystem.NODE_TYPES.BOSS) {
       const boss = EnemyFactory.createBoss(this.worldLevel);
       this.registry.set('currentEnemy', boss);
       this.registry.set('isBoss', true);
-      this.scene.start('CombatScene', { worldLevel: this.worldLevel });
+      this.scene.start('CombatScene', { worldLevel: this.worldLevel, nodeIndex: node.id });
 
     } else if (node.type === MapSystem.NODE_TYPES.CHEST) {
-      this.handleChest(node);
+      this.handleChest(node, map);
     }
   }
 
@@ -184,7 +184,7 @@ export default class MapScene extends Phaser.Scene {
    * TRAP chests have a 50% chance of spawning a trap enemy or a math challenge.
    * {object} node
    */
-  handleChest(node) {
+  handleChest(node, map) {
     if (node.chestType === MapSystem.CHEST_TYPES.REWARD) {
       node.completed = true;
       this.scene.start('RewardScene', {
@@ -200,12 +200,13 @@ export default class MapScene extends Phaser.Scene {
         this.registry.set('currentEnemy', enemy);
         this.registry.set('isBoss', false);
         node.completed = true;
-        this.scene.start('CombatScene', { worldLevel: this.worldLevel });
+        this.scene.start('CombatScene', { worldLevel: this.worldLevel, nodeIndex: node.id });
       } else {
         // 50%: single math problem challenge (no full combat)
         node.completed = true;
         this.scene.start('CombatScene', {
           worldLevel: this.worldLevel,
+          nodeIndex: node.id,
           trapChallenge: true,
         });
       }
