@@ -214,6 +214,97 @@ function generateLevel2() {
 }
 
 /**
+ * World 3 — Tier 1 & 2: 1-digit numbers, 2 signs (+ and ×).
+ * Expressions: a + b × c  or  a × b + c
+ */
+function generateW3Tier1() {
+  const a = randInt(1, 9);
+  const b = randInt(1, 9);
+  const c = randInt(1, 9);
+  if (Math.random() < 0.5) {
+    return { text: `${a} + ${b} x ${c}`, answer: a + b * c, operation: OPERATIONS.MIXED };
+  }
+  return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
+}
+
+/**
+ * World 3 — Tier 3: 1–2 digit (1–10), 2 signs (any operator).
+ * Picks from: a+b×c, a×b+c, a×b-c, a+b-c, a-b+c.
+ * Result always kept non-negative.
+ */
+function generateW3Tier3() {
+  const a = randInt(1, 10);
+  const b = randInt(1, 10);
+  const c = randInt(1, 10);
+  const type = Math.floor(Math.random() * 5);
+
+  if (type === 0) {
+    return { text: `${a} + ${b} x ${c}`, answer: a + b * c, operation: OPERATIONS.MIXED };
+  }
+  if (type === 1) {
+    return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
+  }
+  if (type === 2) {
+    const result = a * b - c;
+    if (result >= 0) return { text: `${a} x ${b} - ${c}`, answer: result, operation: OPERATIONS.MIXED };
+    return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
+  }
+  if (type === 3) {
+    const sum = a + b;
+    const result = sum - c;
+    if (result >= 0) return { text: `${a} + ${b} - ${c}`, answer: result, operation: OPERATIONS.MIXED };
+    return { text: `${a} + ${b} + ${c}`, answer: sum + c, operation: OPERATIONS.MIXED };
+  }
+  // type === 4: a - b + c, ensure a >= b
+  const big = Math.max(a, b);
+  const small = Math.min(a, b);
+  return { text: `${big} - ${small} + ${c}`, answer: big - small + c, operation: OPERATIONS.MIXED };
+}
+
+/**
+ * World 3 — Tier 4 (boss): 2-digit (11–20), 2 signs (any operator).
+ * Same expression patterns as Tier 3 but with larger numbers.
+ */
+function generateW3Tier4() {
+  const a = randInt(11, 20);
+  const b = randInt(11, 20);
+  const c = randInt(11, 20);
+  const type = Math.floor(Math.random() * 5);
+
+  if (type === 0) {
+    return { text: `${a} + ${b} x ${c}`, answer: a + b * c, operation: OPERATIONS.MIXED };
+  }
+  if (type === 1) {
+    return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
+  }
+  if (type === 2) {
+    const result = a * b - c;
+    if (result >= 0) return { text: `${a} x ${b} - ${c}`, answer: result, operation: OPERATIONS.MIXED };
+    return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
+  }
+  if (type === 3) {
+    const sum = a + b;
+    const result = sum - c;
+    if (result >= 0) return { text: `${a} + ${b} - ${c}`, answer: result, operation: OPERATIONS.MIXED };
+    return { text: `${a} + ${b} + ${c}`, answer: sum + c, operation: OPERATIONS.MIXED };
+  }
+  const big = Math.max(a, b);
+  const small = Math.min(a, b);
+  return { text: `${big} - ${small} + ${c}`, answer: big - small + c, operation: OPERATIONS.MIXED };
+}
+
+/**
+ * Picks the correct World 3 generator based on node index.
+ * @param {number} nodeIndex
+ */
+function generateWorld3(nodeIndex = 0) {
+  if (nodeIndex === 0)  return generateW3Tier1();
+  if (nodeIndex <= 2)   return generateW3Tier1(); // tier 2 = same as tier 1
+  if (nodeIndex <= 6)   return generateW3Tier3();
+  return generateW3Tier4();                        // node 7 = boss
+}
+
+/**
  * Level 3 — mixed expression of the form  A (+/-) B (x or /) C.
  * The x / part is evaluated first (operator precedence), exactly like 25 + 50 x 6.
  * @returns {{ text: string, answer: number, operation: string }}
@@ -259,7 +350,7 @@ function generateLevel3() {
 function generate(worldLevel = 1, nodeIndex = 0) {
   switch (worldLevel) {
     case 2:  return generateWorld2(nodeIndex);
-    case 3:  return generateLevel3();
+    case 3:  return generateWorld3(nodeIndex);
     case 1:
     default: return generateWorld1(nodeIndex);
   }
