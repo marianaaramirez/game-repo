@@ -24,12 +24,13 @@ export default class Player extends BaseEntity {
    */
   constructor(skinIndex = 0) {
     super('Player', 100, 10);
-    this.skinIndex   = skinIndex; // Visual skin selection from CharSelectScene
-    this.level       = 1;
-    this.collection  = []; // Every attack/defense card owned by the player
-    this.deck        = []; // Cards selected for combat (max maxDeckSize)
-    this.skillCards  = []; // Skill cards — separate slot, kept on defeat
-    this.maxDeckSize = 4;  // Maximum attack/defense cards active in combat
+    this.skinIndex     = skinIndex; // Visual skin selection from CharSelectScene
+    this.level         = 1;
+    this.collection    = []; // Every attack/defense card owned by the player
+    this.deck          = []; // Cards selected for combat (max maxDeckSize)
+    this.skillCards    = []; // Skill cards — separate slot, kept on defeat
+    this.selectedSkill = null; // The one skill card equipped for next combat (null = none)
+    this.maxDeckSize   = 4;  // Maximum attack/defense cards active in combat
   }
 
   /**
@@ -63,6 +64,25 @@ export default class Player extends BaseEntity {
    */
   addSkillCard(card) {
     this.skillCards.push(card);
+    // Auto-equip the first skill card obtained so it's usable right away
+    if (!this.selectedSkill) {
+      this.selectedSkill = card;
+    }
+  }
+
+  /**
+   * Toggles the selected skill card for the next combat (max 1 slot).
+   * Clicking the already-equipped skill deselects it.
+   * @param {BaseCard} card
+   * @returns {string} 'equipped' | 'unequipped'
+   */
+  toggleSkillCard(card) {
+    if (this.selectedSkill === card) {
+      this.selectedSkill = null;
+      return 'unequipped';
+    }
+    this.selectedSkill = card;
+    return 'equipped';
   }
 
   /**
@@ -107,9 +127,7 @@ export default class Player extends BaseEntity {
    * @returns {BaseCard[]}
    */
   getActiveDeck() {
-    const activeSkill = this.skillCards.length > 0
-      ? [this.skillCards[this.skillCards.length - 1]]
-      : [];
+    const activeSkill = this.selectedSkill ? [this.selectedSkill] : [];
     return [...this.deck, ...activeSkill];
   }
 

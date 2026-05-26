@@ -80,13 +80,13 @@ export default class DeckBuildScene extends Phaser.Scene {
     // --- Collection grid ---
     this.renderCollection();
 
-    // Skill cards info line (separate slot, auto-equipped)
+    // --- Skill cards section (max 1 equipped) ---
     if (player.skillCards.length > 0) {
-      const names = player.skillCards.map((c) => c.name).join(', ');
-      this.add.text(400, 510, `Skill cards (separate slot, auto-equipped): ${names}`, {
-        fontSize: '11px', fontFamily: 'Arial', color: '#ffaa00',
-        wordWrap: { width: 720 }, align: 'center',
+      this.add.text(400, 372, 'SKILL CARD  (max 1 — click to equip / unequip)', {
+        fontSize: '11px', fontFamily: 'Arial Black', color: '#ffaa00',
       }).setOrigin(0.5);
+
+      this.renderSkillCards();
     }
 
     // Transient warning message (e.g. deck full)
@@ -186,6 +186,58 @@ export default class DeckBuildScene extends Phaser.Scene {
           return;
         }
         // Redraw the scene to reflect the new deck selection
+        this.scene.restart();
+      });
+    });
+  }
+
+  /**
+   * Renders the player's skill cards as a horizontal clickable row.
+   * Only one skill card can be equipped at a time (selectedSkill slot).
+   * Equipped card is highlighted in gold; others are dimmed.
+   */
+  renderSkillCards() {
+    const skills  = this.player.skillCards;
+    const cardW   = 108;
+    const cardH   = 110;
+    const gap     = 12;
+    const totalW  = skills.length * (cardW + gap) - gap;
+    const startX  = 400 - totalW / 2 + cardW / 2;
+    const y       = 448;
+
+    skills.forEach((card, i) => {
+      const x        = startX + i * (cardW + gap);
+      const equipped = this.player.selectedSkill === card;
+
+      const bg = this.add.rectangle(x, y, cardW, cardH, 0xaa6600,
+        equipped ? 0.9 : 0.3)
+        .setStrokeStyle(equipped ? 4 : 2, equipped ? 0xffcc00 : 0x886600)
+        .setInteractive({ useHandCursor: true });
+
+      this.add.text(x, y - 40, 'SKL', {
+        fontSize: '11px', fontFamily: 'Arial Black', color: '#ffffff',
+        backgroundColor: '#00000088', padding: { x: 4, y: 2 },
+      }).setOrigin(0.5);
+
+      if (equipped) {
+        this.add.text(x + 30, y - 40, 'EQUIPPED', {
+          fontSize: '9px', fontFamily: 'Arial Black', color: '#1a1a2e',
+          backgroundColor: '#ffcc00', padding: { x: 3, y: 1 },
+        }).setOrigin(0.5);
+      }
+
+      this.add.text(x, y - 16, card.name, {
+        fontSize: '11px', fontFamily: 'Arial Black', color: '#ffdd88',
+        wordWrap: { width: cardW - 10 }, align: 'center',
+      }).setOrigin(0.5);
+
+      this.add.text(x, y + 18, card.description, {
+        fontSize: '9px', fontFamily: 'Arial', color: '#dddddd',
+        wordWrap: { width: cardW - 10 }, align: 'center',
+      }).setOrigin(0.5);
+
+      bg.on('pointerdown', () => {
+        this.player.toggleSkillCard(card);
         this.scene.restart();
       });
     });
