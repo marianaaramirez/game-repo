@@ -24,9 +24,9 @@ const TIMER_DURATION = 10000;
  *   Level 1: 10s   Level 2: 13s   Level 3: 16s
  */
 const DURATION_BY_LEVEL = {
-  1: 10000,
-  2: 13000,
-  3: 16000,
+  1: 13000,
+  2: 16000,
+  3: 19000,
 };
 
 /**
