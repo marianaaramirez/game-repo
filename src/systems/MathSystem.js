@@ -110,27 +110,107 @@ function generateLevel1() {
 }
 
 /**
- * Level 2 — 2-digit multiplication or division.
- * Multiplication: a 2-digit number times a 1-digit number.
- * Division: built backwards so the dividend is 2-digit and the answer is whole.
- * @returns {{ text: string, answer: number, operation: string }}
+ * Shared exact-division generator (used by all World 2 tiers).
+ * Builds the dividend backwards so the answer is always a whole number.
  */
-function generateLevel2() {
-  if (Math.random() < 0.5) {
-    const a = randInt(10, 99); // 2-digit operand
-    const b = randInt(2, 9);   // 1-digit operand
-    return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
-  }
-  // Division: pick divisor and quotient, then derive the dividend
+function generateExactDivision() {
   const divisor = randInt(2, 9);
   let quotient  = randInt(2, 9);
   let dividend  = divisor * quotient;
-  // Make sure the dividend has 2 digits
   while (dividend < 10) {
     quotient = randInt(2, 9);
     dividend = divisor * quotient;
   }
   return { text: `${dividend} / ${divisor}`, answer: quotient, operation: OPERATIONS.DIVISION };
+}
+
+/**
+ * World 2 — Tier 1: 1-digit × 1-digit or division.
+ */
+function generateW2Tier1() {
+  if (Math.random() < 0.5) {
+    const a = randInt(1, 9);
+    const b = randInt(1, 9);
+    return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
+  }
+  return generateExactDivision();
+}
+
+/**
+ * World 2 — Tier 2: operands 1–10 multiplication or division.
+ */
+function generateW2Tier2() {
+  if (Math.random() < 0.5) {
+    const a = randInt(1, 10);
+    const b = randInt(1, 10);
+    return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
+  }
+  return generateExactDivision();
+}
+
+/**
+ * World 2 — Tier 3: 2-digit (11–20) × 1-digit or division.
+ */
+function generateW2Tier3() {
+  if (Math.random() < 0.5) {
+    const a = randInt(11, 20);
+    const b = randInt(1, 9);
+    return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
+  }
+  return generateExactDivision();
+}
+
+/**
+ * World 2 — Tier 4: a × b × c with 1-digit numbers (2 multiplication signs).
+ * 50% mult chain, 50% division.
+ */
+function generateW2Tier4() {
+  if (Math.random() < 0.5) {
+    const a = randInt(1, 9);
+    const b = randInt(1, 9);
+    const c = randInt(1, 9);
+    return { text: `${a} x ${b} x ${c}`, answer: a * b * c, operation: OPERATIONS.MULTIPLICATION };
+  }
+  return generateExactDivision();
+}
+
+/**
+ * World 2 — Tier 5 (boss): 2-digit (40–80) operands, two +/- signs.
+ * Result always kept non-negative.
+ */
+function generateW2Tier5() {
+  const a   = randInt(40, 80);
+  const b   = randInt(40, 80);
+  const c   = randInt(40, 80);
+  const op1 = Math.random() < 0.5 ? '+' : '-';
+  const op2 = Math.random() < 0.5 ? '+' : '-';
+  let answer = a + (op1 === '+' ? b : -b) + (op2 === '+' ? c : -c);
+  if (answer < 0) {
+    // Flip second operator to guarantee positive result
+    const flipped = op2 === '+' ? '-' : '+';
+    answer = a + (op1 === '+' ? b : -b) + (flipped === '+' ? c : -c);
+    return { text: `${a} ${op1} ${b} ${flipped} ${c}`, answer, operation: OPERATIONS.MIXED };
+  }
+  return { text: `${a} ${op1} ${b} ${op2} ${c}`, answer, operation: OPERATIONS.MIXED };
+}
+
+/**
+ * Picks the correct World 2 generator based on node index.
+ * @param {number} nodeIndex
+ */
+function generateWorld2(nodeIndex = 0) {
+  if (nodeIndex === 0)       return generateW2Tier1();
+  if (nodeIndex <= 2)        return generateW2Tier2();
+  if (nodeIndex <= 4)        return generateW2Tier3();
+  if (nodeIndex === 5)       return generateW2Tier4();
+  return generateW2Tier5(); // node 6 = boss
+}
+
+/**
+ * Level 2 — fallback (kept for compatibility).
+ */
+function generateLevel2() {
+  return generateW2Tier3();
 }
 
 /**
@@ -178,7 +258,7 @@ function generateLevel3() {
  */
 function generate(worldLevel = 1, nodeIndex = 0) {
   switch (worldLevel) {
-    case 2:  return generateLevel2();
+    case 2:  return generateWorld2(nodeIndex);
     case 3:  return generateLevel3();
     case 1:
     default: return generateWorld1(nodeIndex);
