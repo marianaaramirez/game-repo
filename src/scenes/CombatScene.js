@@ -78,6 +78,7 @@ export default class CombatScene extends Phaser.Scene {
       timerReduction:              0,  // Subtract ms from elapsed (EvilBat slows timer)
       enemySkipAttack:         false,  // Titan charges — skip normal attack
       swapRandomCard:          false,  // Swapper chaos — card gets randomized
+      secondChance:            false,  // SecondChance skill — allow one retry on wrong answer
       playerDeck: this.player.getActiveDeck(),
     };
 
@@ -276,12 +277,28 @@ export default class CombatScene extends Phaser.Scene {
         this.combatContext.clearMind = true;
       } else if (result.skill === 'double_power') {
         this.combatContext.doublePower = true;
+      } else if (result.skill === 'second_chance') {
+        this.combatContext.secondChance = true;
       }
 
       this.updateHP();
       this.time.delayedCall(1500, () => {
         this.doEnemyTurn();
       });
+      return;
+    }
+
+    // ClearMind: skip math problem entirely, activate card at full base power
+    if (this.combatContext.clearMind) {
+      this.combatContext.clearMind = false;
+      const cardResult = card.apply(this.player, this.enemy, card.baseValue);
+      this.messageText.setText(`Clear Mind! ${cardResult.message}`);
+      if (card.type === CARD_TYPES.DEFENSE) {
+        this.activeDefense = card.baseValue;
+      }
+      this.updateHP();
+      if (CombatSystem.checkWin(this.enemy)) { this.handleWin(); return; }
+      this.time.delayedCall(1200, () => { this.doEnemyTurn(); });
       return;
     }
 
@@ -363,6 +380,19 @@ export default class CombatScene extends Phaser.Scene {
         this.activeDefense = effectValue;
       }
     } else {
+      // SecondChance: one free retry on wrong answer or timeout
+      if (this.combatContext.secondChance) {
+        this.combatContext.secondChance = false;
+        this.messageText.setText('Wrong! Second Chance — try again!');
+        this.inputText = '';
+        this.inputDisplay.setText('_');
+        this.inputBg.setVisible(true);
+        this.inputDisplay.setVisible(true);
+        this.timerStartTime = Date.now();
+        this.timerBarFill.setVisible(true);
+        this.timerActive = true;
+        return; // Skip enemy turn — player gets another attempt
+      }
       this.messageText.setText('Wrong answer or too slow! No effect.');
     }
 
@@ -541,7 +571,8 @@ export default class CombatScene extends Phaser.Scene {
   update() {
     if (!this.timerActive) return;
 
-    const elapsed = Date.now() - this.timerStartTime;
+    // Apply timerReduction so FreezeTime slows the visual bar too
+    const elapsed = Math.max(0, Date.now() - this.timerStartTime + this.combatContext.timerReduction);
     const ratio   = TimerSystem.getRatio(elapsed, this.timerDuration);
     const color   = TimerSystem.getZoneColor(elapsed, this.timerDuration);
 
