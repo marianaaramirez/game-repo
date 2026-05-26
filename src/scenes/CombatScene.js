@@ -41,6 +41,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   init(data) {
     this.worldLevel    = data.worldLevel    || 1;
+    this.nodeIndex     = data.nodeIndex     || 0;
     this.trapChallenge = data.trapChallenge || false;
   }
 
@@ -308,7 +309,7 @@ export default class CombatScene extends Phaser.Scene {
     // Lock all cards — no switching allowed once problem is shown
     this.cardObjects.forEach((obj) => obj.disableInteractive());
 
-    this.currentProblem = MathSystem.generate(this.worldLevel);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex);
     this.problemText.setText(`${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);
@@ -594,7 +595,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   startTrapChallenge() {
     this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
-    this.currentProblem = MathSystem.generate(this.worldLevel);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex);
     this.problemText.setText(`TRAP! Solve: ${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);

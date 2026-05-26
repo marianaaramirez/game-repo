@@ -28,20 +28,85 @@ function randInt(min, max) {
 }
 
 /**
- * Level 1 — 2-digit addition or subtraction.
- * Subtraction keeps both operands 2-digit and the result non-negative.
- * @returns {{ text: string, answer: number, operation: string }}
+ * World 1 — Tier 1: 1-digit operands, one +/- sign.
+ * Easiest problems for the first nodes of the map.
  */
-function generateLevel1() {
+function generateW1Tier1() {
+  const a = randInt(1, 9);
+  const b = randInt(1, 9);
   if (Math.random() < 0.5) {
-    const a = randInt(10, 99);
-    const b = randInt(10, 99);
     return { text: `${a} + ${b}`, answer: a + b, operation: OPERATIONS.ADDITION };
   }
-  // Subtraction: a is the larger operand so the answer stays positive
-  const a = randInt(20, 99);
-  const b = randInt(10, a);
-  return { text: `${a} - ${b}`, answer: a - b, operation: OPERATIONS.SUBTRACTION };
+  const big = Math.max(a, b);
+  const small = Math.min(a, b);
+  return { text: `${big} - ${small}`, answer: big - small, operation: OPERATIONS.SUBTRACTION };
+}
+
+/**
+ * World 1 — Tier 2: 2-digit operands (10–49), one +/- sign.
+ */
+function generateW1Tier2() {
+  const a = randInt(10, 49);
+  const b = randInt(10, 49);
+  if (Math.random() < 0.5) {
+    return { text: `${a} + ${b}`, answer: a + b, operation: OPERATIONS.ADDITION };
+  }
+  const big = Math.max(a, b);
+  const small = Math.min(a, b);
+  return { text: `${big} - ${small}`, answer: big - small, operation: OPERATIONS.SUBTRACTION };
+}
+
+/**
+ * World 1 — Tier 3: 2-digit operands (50–89), one +/- sign.
+ */
+function generateW1Tier3() {
+  const a = randInt(50, 89);
+  const b = randInt(50, 89);
+  if (Math.random() < 0.5) {
+    return { text: `${a} + ${b}`, answer: a + b, operation: OPERATIONS.ADDITION };
+  }
+  const big = Math.max(a, b);
+  const small = Math.min(a, b);
+  return { text: `${big} - ${small}`, answer: big - small, operation: OPERATIONS.SUBTRACTION };
+}
+
+/**
+ * World 1 — Tier 4: 3 operands (10–49), two +/- signs.
+ * Boss node difficulty. Result always stays non-negative.
+ */
+function generateW1Tier4() {
+  const a = randInt(10, 49);
+  const b = randInt(10, 49);
+  const c = randInt(10, 49);
+  const ops = ['+', '-'];
+  const op1 = ops[Math.floor(Math.random() * 2)];
+  const op2 = ops[Math.floor(Math.random() * 2)];
+  let answer = a + (op1 === '+' ? b : -b) + (op2 === '+' ? c : -c);
+  // If result negative, flip second operator
+  if (answer < 0) {
+    const flipped = op2 === '+' ? '-' : '+';
+    answer = a + (op1 === '+' ? b : -b) + (flipped === '+' ? c : -c);
+    return { text: `${a} ${op1} ${b} ${flipped} ${c}`, answer, operation: OPERATIONS.MIXED };
+  }
+  return { text: `${a} ${op1} ${b} ${op2} ${c}`, answer, operation: OPERATIONS.MIXED };
+}
+
+/**
+ * Picks the correct World 1 generator based on node index.
+ * @param {number} nodeIndex
+ */
+function generateWorld1(nodeIndex = 0) {
+  if (nodeIndex <= 1) return generateW1Tier1();
+  if (nodeIndex <= 5) return generateW1Tier2();
+  if (nodeIndex <= 6) return generateW1Tier3();
+  return generateW1Tier4(); // node 7+ (boss node 8)
+}
+
+/**
+ * Level 1 — fallback (kept for compatibility).
+ */
+function generateLevel1() {
+  return generateW1Tier2();
 }
 
 /**
@@ -105,16 +170,18 @@ function generateLevel3() {
 }
 
 /**
- * Generates a math problem for the given level.
+ * Generates a math problem for the given level and node.
+ * World 1 uses nodeIndex to pick a difficulty tier within the map.
  * @param {number} worldLevel - 1, 2, or 3
+ * @param {number} nodeIndex  - Current map node (used for World 1 tier selection)
  * @returns {{ text: string, answer: number, operation: string }}
  */
-function generate(worldLevel = 1) {
+function generate(worldLevel = 1, nodeIndex = 0) {
   switch (worldLevel) {
     case 2:  return generateLevel2();
     case 3:  return generateLevel3();
     case 1:
-    default: return generateLevel1();
+    default: return generateWorld1(nodeIndex);
   }
 }
 
