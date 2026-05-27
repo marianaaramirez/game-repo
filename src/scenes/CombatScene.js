@@ -494,6 +494,45 @@ export default class CombatScene extends Phaser.Scene {
   }
 
   /**
+   * Called when the math problem timer runs out.
+   * Forces the player's turn to end without accepting any answer.
+   * SecondChance still applies — gives one retry on timeout.
+   */
+  handleTimeout() {
+    // SecondChance: one free retry on timeout
+    if (this.combatContext.secondChance) {
+      this.combatContext.secondChance = false;
+      this.messageText.setText('Time out! Second Chance — try again!');
+      this.inputText = '';
+      this.inputDisplay.setText('_');
+      this.inputBg.setVisible(true);
+      this.inputDisplay.setVisible(true);
+      this.timerStartTime = Date.now();
+      this.timerBarFill.setVisible(true);
+      this.timerActive = true;
+      return;
+    }
+
+    // Flip state OUT of MATH_PROBLEM so keyboard input is ignored
+    this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
+    this.messageText.setText('Time out! No effect.');
+
+    // Reset per-turn modifiers
+    this.combatContext.cardEffectivenessModifier = 1;
+    this.combatContext.timerReduction            = 0;
+
+    // Hide input / timer UI
+    this.inputBg.setVisible(false);
+    this.inputDisplay.setVisible(false);
+    this.timerBarFill.setVisible(false);
+    this.problemText.setText('');
+
+    this.time.delayedCall(1200, () => {
+      this.doEnemyTurn();
+    });
+  }
+
+  /**
    * Resets state for the next turn: clears card objects and redraws the hand.
    */
   startNewTurn() {
@@ -585,10 +624,10 @@ export default class CombatScene extends Phaser.Scene {
     this.timerBarFill.setDisplaySize(ratio * 500, 18);
     this.timerBarFill.setFillStyle(color);
 
-    // Auto-submit with empty answer on timeout (results in 0 effect)
+    // Timeout: force end of player turn — no answer accepted, no card effect
     if (TimerSystem.isExpired(elapsed, this.timerDuration)) {
       this.timerActive = false;
-      this.submitAnswer();
+      this.handleTimeout();
     }
   }
 
