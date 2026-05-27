@@ -370,7 +370,10 @@ export default class CombatScene extends Phaser.Scene {
       this.combatContext.doublePower = false;
     }
     // Apply Slime cardEffectivenessModifier (rounds down)
-    effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
+    // Pierce attacks ignore the debuff
+    if (this.selectedCard.special !== 'pierce') {
+      effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
+    }
 
     if (result.success) {
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue);
@@ -436,8 +439,24 @@ export default class CombatScene extends Phaser.Scene {
     // answers a math problem correctly (handled in submitAnswer).
     this.combatContext.disabledCardIndex = -1;
 
+    // Bleed tick — apply DoT damage to enemy at the start of its turn
+    let bleedMsg = '';
+    if (this.enemy.bleed && this.enemy.bleed > 0) {
+      const tickDmg = this.enemy.bleedDamage || 0;
+      this.enemy.takeDamage(tickDmg);
+      this.enemy.bleed -= 1;
+      bleedMsg = `${this.enemy.name} bleeds for ${tickDmg} damage!\n`;
+      this.updateHP();
+      // If bleed killed the enemy, end combat right here
+      if (CombatSystem.checkWin(this.enemy)) {
+        this.messageText.setText(bleedMsg.trim());
+        this.handleWin();
+        return;
+      }
+    }
+
     const action = this.enemy.getAction();
-    let msg = '';
+    let msg = bleedMsg; // prepend bleed tick info if present
 
     if (action === 'skill') {
       // Enemy uses its unique skill — may mutate combatContext
