@@ -347,12 +347,14 @@ function generateLevel3() {
  * @param {number} nodeIndex  - Current map node (used for World 1 tier selection)
  * @returns {{ text: string, answer: number, operation: string }}
  */
-function generate(worldLevel = 1, nodeIndex = 0) {
+function generate(worldLevel = 1, nodeIndex = 0, tierOffset = 0) {
+  // Apply tier offset (e.g. Mage passive shifts difficulty down)
+  const effectiveIndex = Math.max(0, nodeIndex + tierOffset);
   switch (worldLevel) {
-    case 2:  return generateWorld2(nodeIndex);
-    case 3:  return generateWorld3(nodeIndex);
+    case 2:  return generateWorld2(effectiveIndex);
+    case 3:  return generateWorld3(effectiveIndex);
     case 1:
-    default: return generateWorld1(nodeIndex);
+    default: return generateWorld1(effectiveIndex);
   }
 }
 

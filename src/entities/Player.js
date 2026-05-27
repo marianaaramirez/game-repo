@@ -33,25 +33,23 @@ export default class Player extends BaseEntity {
     this.maxDeckSize   = 4;
 
     // --- Skin-based passive powers ---
-    // Warrior: tanky (extra HP, no offense/timer bonus)
-    // Mage:    glass cannon (less HP, +20% card damage)
-    // Rogue:   agile (normal HP, +2s timer per problem)
-    this.damageBonus = 0;       // Bonus multiplier applied to attack effect value
-    this.timerBonus  = 0;       // Extra ms added to math problem timer
+    // Warrior: +3s on every math problem timer
+    // Mage:    math difficulty tier shifted down (easier digit ranges per node)
+    // Rogue:   every 2nd successful answer deals double effect
+    this.timerBonus           = 0; // Extra ms added to math problem timer
+    this.mathDifficultyOffset = 0; // Negative = easier (shifts effective node tier down)
+    this.rogueDouble          = false; // Enables every-2nd-answer doubling
 
     if (skinIndex === 0) {
       // Warrior
-      this.maxHp = 120;
+      this.timerBonus = 3000;
     } else if (skinIndex === 1) {
       // Mage
-      this.maxHp       = 90;
-      this.damageBonus = 0.2;
+      this.mathDifficultyOffset = -2;
     } else if (skinIndex === 2) {
       // Rogue
-      this.timerBonus  = 2000;
+      this.rogueDouble = true;
     }
-
-    this.hp = this.maxHp;
   }
 
   /**

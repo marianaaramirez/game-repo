@@ -81,6 +81,7 @@ export default class CombatScene extends Phaser.Scene {
       enemySkipAttack:         false,  // Titan charges — skip normal attack
       swapRandomCard:          false,  // Swapper chaos — card gets randomized
       secondChance:            false,  // SecondChance skill — allow one retry on wrong answer
+      rogueCounter:                0,  // Rogue passive — counts successful answers
       playerDeck: this.player.getActiveDeck(),
     };
 
@@ -294,9 +295,12 @@ export default class CombatScene extends Phaser.Scene {
     if (this.combatContext.clearMind) {
       this.combatContext.clearMind = false;
       let effectValue = card.baseValue;
-      // Mage passive applies on ATTACK cards even when ClearMind skips math
-      if (card.type === CARD_TYPES.ATTACK && this.player.damageBonus) {
-        effectValue = Math.round(effectValue * (1 + this.player.damageBonus));
+      // Rogue passive: every 2nd successful action doubles effect
+      if (this.player.rogueDouble) {
+        this.combatContext.rogueCounter = (this.combatContext.rogueCounter || 0) + 1;
+        if (this.combatContext.rogueCounter % 2 === 0) {
+          effectValue *= 2;
+        }
       }
       const cardResult = card.apply(this.player, this.enemy, effectValue);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
@@ -315,7 +319,7 @@ export default class CombatScene extends Phaser.Scene {
     // Lock all cards — no switching allowed once problem is shown
     this.cardObjects.forEach((obj) => obj.disableInteractive());
 
-    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0);
     this.problemText.setText(`${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);
@@ -380,14 +384,19 @@ export default class CombatScene extends Phaser.Scene {
     if (this.selectedCard.special !== 'pierce') {
       effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
     }
-    // Mage passive: +20% damage on ATTACK cards
-    if (this.selectedCard.type === CARD_TYPES.ATTACK && this.player.damageBonus) {
-      effectValue = Math.round(effectValue * (1 + this.player.damageBonus));
-    }
-
     if (result.success) {
+      // Rogue passive: every 2nd successful answer doubles the effect
+      let rogueMsg = '';
+      if (this.player.rogueDouble) {
+        this.combatContext.rogueCounter = (this.combatContext.rogueCounter || 0) + 1;
+        if (this.combatContext.rogueCounter % 2 === 0) {
+          effectValue *= 2;
+          rogueMsg = ' (Rogue Double!)';
+        }
+      }
+
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue);
-      this.messageText.setText(`Correct! ${cardResult.message}`);
+      this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
       // Store defense value so enemy attack this turn can be reduced
       if (this.selectedCard.type === CARD_TYPES.DEFENSE) {
@@ -667,7 +676,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   startTrapChallenge() {
     this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
-    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0);
     this.problemText.setText(`TRAP! Solve: ${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);
