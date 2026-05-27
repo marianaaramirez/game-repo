@@ -380,6 +380,9 @@ export default class CombatScene extends Phaser.Scene {
       if (this.selectedCard.type === CARD_TYPES.DEFENSE) {
         this.activeDefense = effectValue;
       }
+
+      // Unlock any CardThief-locked card (lock persists until a correct answer)
+      this.combatContext.lockedCardIndex = -1;
     } else {
       // SecondChance: one free retry on wrong answer or timeout
       if (this.combatContext.secondChance) {
@@ -427,6 +430,11 @@ export default class CombatScene extends Phaser.Scene {
    */
   doEnemyTurn() {
     this.combatState = CombatSystem.COMBAT_STATE.ENEMY_TURN;
+
+    // Reset Spider's disable flag BEFORE enemy acts — it only lasts 1 player turn.
+    // CardThief's lockedCardIndex is NOT reset here: it persists until the player
+    // answers a math problem correctly (handled in submitAnswer).
+    this.combatContext.disabledCardIndex = -1;
 
     const action = this.enemy.getAction();
     let msg = '';
@@ -493,10 +501,6 @@ export default class CombatScene extends Phaser.Scene {
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
-
-    // Clear per-turn card disable flags so they don't persist beyond one turn
-    this.combatContext.disabledCardIndex = -1;
-    this.combatContext.lockedCardIndex   = -1;
 
     // Destroy old card GameObjects and redraw to reflect any state changes
     this.cardObjects.forEach((obj) => obj.destroy());
