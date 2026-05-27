@@ -24,13 +24,32 @@ export default class Player extends BaseEntity {
    */
   constructor(skinIndex = 0) {
     super('Player', 100, 10);
-    this.skinIndex     = skinIndex; // Visual skin selection from CharSelectScene
+    this.skinIndex     = skinIndex;
     this.level         = 1;
-    this.collection    = []; // Every attack/defense card owned by the player
-    this.deck          = []; // Cards selected for combat (max maxDeckSize)
-    this.skillCards    = []; // Skill cards — separate slot, kept on defeat
-    this.selectedSkill = null; // The one skill card equipped for next combat (null = none)
-    this.maxDeckSize   = 4;  // Maximum attack/defense cards active in combat
+    this.collection    = [];
+    this.deck          = [];
+    this.skillCards    = [];
+    this.selectedSkill = null;
+    this.maxDeckSize   = 4;
+
+    // --- Skin-based passive powers ---
+    // Warrior: +3s on every math problem timer
+    // Mage:    math difficulty tier shifted down (easier digit ranges per node)
+    // Rogue:   every 2nd successful answer deals double effect
+    this.timerBonus           = 0; // Extra ms added to math problem timer
+    this.mathDifficultyOffset = 0; // Negative = easier (shifts effective node tier down)
+    this.rogueDouble          = false; // Enables every-2nd-answer doubling
+
+    if (skinIndex === 0) {
+      // Warrior
+      this.timerBonus = 3000;
+    } else if (skinIndex === 1) {
+      // Mage
+      this.mathDifficultyOffset = -2;
+    } else if (skinIndex === 2) {
+      // Rogue
+      this.rogueDouble = true;
+    }
   }
 
   /**

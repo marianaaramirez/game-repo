@@ -18,9 +18,9 @@ import Phaser from 'phaser';
 
 // Skin definitions: name, color, and short description shown below character
 const SKINS = [
-  { name: 'Warrior', color: 0x4488ff, desc: 'Balanced fighter' },
-  { name: 'Mage', color: 0xaa44ff, desc: 'Magic specialist' },
-  { name: 'Rogue', color: 0x44ff88, desc: 'Quick attacker' },
+  { name: 'Warrior', color: 0x4488ff, desc: '+3s on every timer' },
+  { name: 'Mage',    color: 0xaa44ff, desc: 'Easier math problems' },
+  { name: 'Rogue',   color: 0x44ff88, desc: 'Double effect every 2 answers' },
 ];
 
 export default class CharSelectScene extends Phaser.Scene {

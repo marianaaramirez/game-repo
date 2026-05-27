@@ -58,7 +58,8 @@ export default class CombatScene extends Phaser.Scene {
     this.currentProblem = null;
     this.timerStartTime = 0;
     // Time allowed per problem — higher levels get more time (harder math)
-    this.timerDuration  = TimerSystem.getDuration(this.worldLevel);
+    // Rogue passive adds extra time via player.timerBonus
+    this.timerDuration  = TimerSystem.getDuration(this.worldLevel) + (this.player.timerBonus || 0);
     this.selectedCard   = null;
     this.activeDefense  = 0;   // Defense value blocks enemy damage this turn
     this.inputText      = '';  // Accumulates keyboard digits for the answer field
@@ -80,6 +81,7 @@ export default class CombatScene extends Phaser.Scene {
       enemySkipAttack:         false,  // Titan charges — skip normal attack
       swapRandomCard:          false,  // Swapper chaos — card gets randomized
       secondChance:            false,  // SecondChance skill — allow one retry on wrong answer
+      rogueCounter:                0,  // Rogue passive — counts successful answers
       playerDeck: this.player.getActiveDeck(),
     };
 
@@ -292,10 +294,18 @@ export default class CombatScene extends Phaser.Scene {
     // ClearMind: skip math problem entirely, activate card at full base power
     if (this.combatContext.clearMind) {
       this.combatContext.clearMind = false;
-      const cardResult = card.apply(this.player, this.enemy, card.baseValue);
+      let effectValue = card.baseValue;
+      // Rogue passive: every 2nd successful action doubles effect
+      if (this.player.rogueDouble) {
+        this.combatContext.rogueCounter = (this.combatContext.rogueCounter || 0) + 1;
+        if (this.combatContext.rogueCounter % 2 === 0) {
+          effectValue *= 2;
+        }
+      }
+      const cardResult = card.apply(this.player, this.enemy, effectValue);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
       if (card.type === CARD_TYPES.DEFENSE) {
-        this.activeDefense = card.baseValue;
+        this.activeDefense = effectValue;
       }
       this.updateHP();
       if (CombatSystem.checkWin(this.enemy)) { this.handleWin(); return; }
@@ -309,7 +319,7 @@ export default class CombatScene extends Phaser.Scene {
     // Lock all cards — no switching allowed once problem is shown
     this.cardObjects.forEach((obj) => obj.disableInteractive());
 
-    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0);
     this.problemText.setText(`${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);
@@ -370,16 +380,31 @@ export default class CombatScene extends Phaser.Scene {
       this.combatContext.doublePower = false;
     }
     // Apply Slime cardEffectivenessModifier (rounds down)
-    effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
-
+    // Pierce attacks ignore the debuff
+    if (this.selectedCard.special !== 'pierce') {
+      effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
+    }
     if (result.success) {
+      // Rogue passive: every 2nd successful answer doubles the effect
+      let rogueMsg = '';
+      if (this.player.rogueDouble) {
+        this.combatContext.rogueCounter = (this.combatContext.rogueCounter || 0) + 1;
+        if (this.combatContext.rogueCounter % 2 === 0) {
+          effectValue *= 2;
+          rogueMsg = ' (Rogue Double!)';
+        }
+      }
+
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue);
-      this.messageText.setText(`Correct! ${cardResult.message}`);
+      this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
       // Store defense value so enemy attack this turn can be reduced
       if (this.selectedCard.type === CARD_TYPES.DEFENSE) {
         this.activeDefense = effectValue;
       }
+
+      // Unlock any CardThief-locked card (lock persists until a correct answer)
+      this.combatContext.lockedCardIndex = -1;
     } else {
       // SecondChance: one free retry on wrong answer or timeout
       if (this.combatContext.secondChance) {
@@ -428,8 +453,29 @@ export default class CombatScene extends Phaser.Scene {
   doEnemyTurn() {
     this.combatState = CombatSystem.COMBAT_STATE.ENEMY_TURN;
 
+    // Reset Spider's disable flag BEFORE enemy acts — it only lasts 1 player turn.
+    // CardThief's lockedCardIndex is NOT reset here: it persists until the player
+    // answers a math problem correctly (handled in submitAnswer).
+    this.combatContext.disabledCardIndex = -1;
+
+    // Bleed tick — apply DoT damage to enemy at the start of its turn
+    let bleedMsg = '';
+    if (this.enemy.bleed && this.enemy.bleed > 0) {
+      const tickDmg = this.enemy.bleedDamage || 0;
+      this.enemy.takeDamage(tickDmg);
+      this.enemy.bleed -= 1;
+      bleedMsg = `${this.enemy.name} bleeds for ${tickDmg} damage!\n`;
+      this.updateHP();
+      // If bleed killed the enemy, end combat right here
+      if (CombatSystem.checkWin(this.enemy)) {
+        this.messageText.setText(bleedMsg.trim());
+        this.handleWin();
+        return;
+      }
+    }
+
     const action = this.enemy.getAction();
-    let msg = '';
+    let msg = bleedMsg; // prepend bleed tick info if present
 
     if (action === 'skill') {
       // Enemy uses its unique skill — may mutate combatContext
@@ -486,6 +532,45 @@ export default class CombatScene extends Phaser.Scene {
   }
 
   /**
+   * Called when the math problem timer runs out.
+   * Forces the player's turn to end without accepting any answer.
+   * SecondChance still applies — gives one retry on timeout.
+   */
+  handleTimeout() {
+    // SecondChance: one free retry on timeout
+    if (this.combatContext.secondChance) {
+      this.combatContext.secondChance = false;
+      this.messageText.setText('Time out! Second Chance — try again!');
+      this.inputText = '';
+      this.inputDisplay.setText('_');
+      this.inputBg.setVisible(true);
+      this.inputDisplay.setVisible(true);
+      this.timerStartTime = Date.now();
+      this.timerBarFill.setVisible(true);
+      this.timerActive = true;
+      return;
+    }
+
+    // Flip state OUT of MATH_PROBLEM so keyboard input is ignored
+    this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
+    this.messageText.setText('Time out! No effect.');
+
+    // Reset per-turn modifiers
+    this.combatContext.cardEffectivenessModifier = 1;
+    this.combatContext.timerReduction            = 0;
+
+    // Hide input / timer UI
+    this.inputBg.setVisible(false);
+    this.inputDisplay.setVisible(false);
+    this.timerBarFill.setVisible(false);
+    this.problemText.setText('');
+
+    this.time.delayedCall(1200, () => {
+      this.doEnemyTurn();
+    });
+  }
+
+  /**
    * Resets state for the next turn: clears card objects and redraws the hand.
    */
   startNewTurn() {
@@ -493,10 +578,6 @@ export default class CombatScene extends Phaser.Scene {
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
-
-    // Clear per-turn card disable flags so they don't persist beyond one turn
-    this.combatContext.disabledCardIndex = -1;
-    this.combatContext.lockedCardIndex   = -1;
 
     // Destroy old card GameObjects and redraw to reflect any state changes
     this.cardObjects.forEach((obj) => obj.destroy());
@@ -581,10 +662,10 @@ export default class CombatScene extends Phaser.Scene {
     this.timerBarFill.setDisplaySize(ratio * 500, 18);
     this.timerBarFill.setFillStyle(color);
 
-    // Auto-submit with empty answer on timeout (results in 0 effect)
+    // Timeout: force end of player turn — no answer accepted, no card effect
     if (TimerSystem.isExpired(elapsed, this.timerDuration)) {
       this.timerActive = false;
-      this.submitAnswer();
+      this.handleTimeout();
     }
   }
 
@@ -595,7 +676,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   startTrapChallenge() {
     this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
-    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0);
     this.problemText.setText(`TRAP! Solve: ${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);
