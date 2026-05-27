@@ -24,13 +24,34 @@ export default class Player extends BaseEntity {
    */
   constructor(skinIndex = 0) {
     super('Player', 100, 10);
-    this.skinIndex     = skinIndex; // Visual skin selection from CharSelectScene
+    this.skinIndex     = skinIndex;
     this.level         = 1;
-    this.collection    = []; // Every attack/defense card owned by the player
-    this.deck          = []; // Cards selected for combat (max maxDeckSize)
-    this.skillCards    = []; // Skill cards — separate slot, kept on defeat
-    this.selectedSkill = null; // The one skill card equipped for next combat (null = none)
-    this.maxDeckSize   = 4;  // Maximum attack/defense cards active in combat
+    this.collection    = [];
+    this.deck          = [];
+    this.skillCards    = [];
+    this.selectedSkill = null;
+    this.maxDeckSize   = 4;
+
+    // --- Skin-based passive powers ---
+    // Warrior: tanky (extra HP, no offense/timer bonus)
+    // Mage:    glass cannon (less HP, +20% card damage)
+    // Rogue:   agile (normal HP, +2s timer per problem)
+    this.damageBonus = 0;       // Bonus multiplier applied to attack effect value
+    this.timerBonus  = 0;       // Extra ms added to math problem timer
+
+    if (skinIndex === 0) {
+      // Warrior
+      this.maxHp = 120;
+    } else if (skinIndex === 1) {
+      // Mage
+      this.maxHp       = 90;
+      this.damageBonus = 0.2;
+    } else if (skinIndex === 2) {
+      // Rogue
+      this.timerBonus  = 2000;
+    }
+
+    this.hp = this.maxHp;
   }
 
   /**

@@ -58,7 +58,8 @@ export default class CombatScene extends Phaser.Scene {
     this.currentProblem = null;
     this.timerStartTime = 0;
     // Time allowed per problem — higher levels get more time (harder math)
-    this.timerDuration  = TimerSystem.getDuration(this.worldLevel);
+    // Rogue passive adds extra time via player.timerBonus
+    this.timerDuration  = TimerSystem.getDuration(this.worldLevel) + (this.player.timerBonus || 0);
     this.selectedCard   = null;
     this.activeDefense  = 0;   // Defense value blocks enemy damage this turn
     this.inputText      = '';  // Accumulates keyboard digits for the answer field
@@ -292,10 +293,15 @@ export default class CombatScene extends Phaser.Scene {
     // ClearMind: skip math problem entirely, activate card at full base power
     if (this.combatContext.clearMind) {
       this.combatContext.clearMind = false;
-      const cardResult = card.apply(this.player, this.enemy, card.baseValue);
+      let effectValue = card.baseValue;
+      // Mage passive applies on ATTACK cards even when ClearMind skips math
+      if (card.type === CARD_TYPES.ATTACK && this.player.damageBonus) {
+        effectValue = Math.round(effectValue * (1 + this.player.damageBonus));
+      }
+      const cardResult = card.apply(this.player, this.enemy, effectValue);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
       if (card.type === CARD_TYPES.DEFENSE) {
-        this.activeDefense = card.baseValue;
+        this.activeDefense = effectValue;
       }
       this.updateHP();
       if (CombatSystem.checkWin(this.enemy)) { this.handleWin(); return; }
@@ -373,6 +379,10 @@ export default class CombatScene extends Phaser.Scene {
     // Pierce attacks ignore the debuff
     if (this.selectedCard.special !== 'pierce') {
       effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
+    }
+    // Mage passive: +20% damage on ATTACK cards
+    if (this.selectedCard.type === CARD_TYPES.ATTACK && this.player.damageBonus) {
+      effectValue = Math.round(effectValue * (1 + this.player.damageBonus));
     }
 
     if (result.success) {
