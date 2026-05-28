@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cozy Cat Café</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+    <div class="header-content">
+        <h1>🐱 Cozy Cat Café</h1>
+        <p class="subtitle">Relax, sip your coffee, and spend time with our lovely cats</p>
+        <div class="paw-row">🐾 🐾 🐾 🐾 🐾</div>
+    </div>
+</header>
+
+<nav class="day-nav">
+    <h2>📅 Daily Menu</h2>
+    <p class="nav-hint">Select a day to see our special menu</p>
+    <div class="buttons" id="day-buttons">
+        <button onclick="changeMenu('monday')"    data-day="monday">Mon</button>
+        <button onclick="changeMenu('tuesday')"   data-day="tuesday">Tue</button>
+        <button onclick="changeMenu('wednesday')" data-day="wednesday">Wed</button>
+        <button onclick="changeMenu('thursday')"  data-day="thursday">Thu</button>
+        <button onclick="changeMenu('friday')"    data-day="friday">Fri</button>
+        <button onclick="changeMenu('saturday')"  data-day="saturday">Sat</button>
+        <button onclick="changeMenu('sunday')"    data-day="sunday">Sun</button>
+    </div>
+</nav>
+
+<section class="menu-section">
+    <p id="menu-day-label" class="menu-day-label"></p>
+    <div id="menu" class="menu-grid"></div>
+</section>
+
+<section class="cats-section">
+    <h2>🐾 Meet Our Cats</h2>
+    <p class="section-subtitle">Say hello to our resident feline family!</p>
+    <div id="cats-container" class="cats"></div>
+</section>
+
+<footer>
+    <p>🐱 Cozy Cat Café — Open every day 9am–9pm</p>
+</footer>
+
+<script src="index.js"></script>
+</body>
+</html>
