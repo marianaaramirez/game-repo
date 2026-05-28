@@ -1,13 +1,16 @@
 /**
  * DefenseCard.js
  * Concrete card class for defense-type cards.
- * When activated, sets an active defense value that absorbs incoming enemy damage
- * during the enemy's turn that immediately follows.
  *
  * Special mechanics (the `special` field):
  *   'none'    — plain block
- *   'heal'    — blocks AND heals the player for half the block value
- *   'counter' — blocks AND reflects half the block value back as damage
+ *   'heal'    — blocks AND heals the player for 75% of the block value
+ *   'counter' — blocks AND reflects 50% of the block value back as damage
+ *   'reflect' — does NOT block; reflects 100% of effectValue back at the enemy
+ *   'regen'   — blocks AND grants HoT (3 HP per turn × 2 turns)
+ *   'taunt'   — blocks AND forces 50% chance that enemy uses skill next turn
+ *   'evade'   — blocks AND 30% chance to dodge enemy attack next turn
+ *   'barrier' — blocks AND keeps active defense for an extra enemy turn
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -19,37 +22,58 @@ export default class DefenseCard extends BaseCard {
    * @param {string} name        - Card display name
    * @param {number} baseValue   - Base defense points before timer multiplier
    * @param {string} description
-   * @param {string} special     - Special mechanic: 'none' | 'heal' | 'counter'
+   * @param {string} special     - Special mechanic
+   * @param {object} extra       - Special-specific config (e.g. { regenTurns, regenAmount })
    */
-  constructor(name, baseValue, description, special = 'none') {
+  constructor(name, baseValue, description, special = 'none', extra = {}) {
     super(name, CARD_TYPES.DEFENSE, baseValue, description);
     this.special = special;
+    this.extra   = extra;
   }
 
   /**
    * Returns the defense value to store as activeDefense in CombatScene, and
-   * applies any special side-effect (healing the player or countering the enemy).
-   * @param {Player}    player
-   * @param {BaseEnemy} enemy
-   * @param {number}    effectValue - Final defense after timer scaling
-   * @returns {{ defense: number, message: string }}
+   * applies/queues any special side-effect through the shared combatContext.
+   * CombatScene reads ctx flags later in the turn flow.
+   *
+   * NOTE: To pass ctx, CombatScene calls `card.apply(player, enemy, effectValue, ctx)`.
+   * Existing call sites still work — ctx defaults to a no-op object.
    */
-  apply(player, enemy, effectValue) {
+  apply(player, enemy, effectValue, ctx = {}) {
+    let defense = effectValue;
     let message = `${this.name} blocks ${effectValue} damage!`;
 
     if (this.special === 'heal') {
-      // Restore HP equal to 75% of the block value
       const healed = Math.round(effectValue * 0.75);
       player.heal(healed);
       message += ` Restored ${healed} HP!`;
     } else if (this.special === 'counter') {
-      // Reflect half of the block value back at the enemy as damage
       const reflected = Math.round(effectValue * 0.5);
       enemy.takeDamage(reflected);
       message += ` Countered ${reflected} damage!`;
+    } else if (this.special === 'reflect') {
+      // No block — reflects full damage at the enemy
+      defense = 0;
+      enemy.takeDamage(effectValue);
+      message = `${this.name} reflects ${effectValue} damage back at the enemy!`;
+    } else if (this.special === 'regen') {
+      const turns  = this.extra.regenTurns  || 2;
+      const amount = this.extra.regenAmount || 3;
+      ctx.playerRegen       = turns;
+      ctx.playerRegenAmount = amount;
+      message += ` Regenerating ${amount} HP for ${turns} turns!`;
+    } else if (this.special === 'taunt') {
+      ctx.tauntForceSkill = true;
+      message += ` Enemy may be forced to use a skill!`;
+    } else if (this.special === 'evade') {
+      ctx.evadeChance = 0.3;
+      message += ` 30% chance to dodge next attack!`;
+    } else if (this.special === 'barrier') {
+      ctx.barrierTurns = 1; // 1 extra enemy turn (total 2)
+      message += ` Defense persists for an extra turn!`;
     }
 
-    return { defense: effectValue, message };
+    return { defense, message };
   }
 }
 
@@ -62,18 +86,36 @@ export const DEFENSE_CARDS = {
     () => new DefenseCard('Sturdy Block', 18, 'Blocks a large amount of damage'),
     () => new DefenseCard('Healing Ward', 14, 'Blocks damage and heals you', 'heal'),
     () => new DefenseCard('Thorn Shield', 13, 'Blocks and reflects damage', 'counter'),
+    () => new DefenseCard('Reflect Aura', 10, 'Reflects all damage back (no block)', 'reflect'),
+    () => new DefenseCard('Renewal Ward', 12, 'Blocks + regenerates HP over time', 'regen',
+      { regenTurns: 2, regenAmount: 3 }),
+    () => new DefenseCard('Taunt Helm', 14, 'Blocks + may force enemy to use skill', 'taunt'),
+    () => new DefenseCard('Phantom Cloak', 12, 'Blocks + 30% chance to dodge next attack', 'evade'),
+    () => new DefenseCard('Sustain Wall', 10, 'Blocks + defense lasts an extra turn', 'barrier'),
   ],
   2: [
     () => new DefenseCard('Iron Wall', 20, 'Blocks incoming damage'),
     () => new DefenseCard('Castle Aegis', 28, 'Blocks a heavy amount of damage'),
     () => new DefenseCard('Mending Barrier', 20, 'Blocks damage and heals you', 'heal'),
     () => new DefenseCard('Spiked Rampart', 18, 'Blocks and reflects damage', 'counter'),
+    () => new DefenseCard('Mirror Plate', 16, 'Reflects all damage back (no block)', 'reflect'),
+    () => new DefenseCard('Mending Mantle', 20, 'Blocks + regenerates HP over time', 'regen',
+      { regenTurns: 2, regenAmount: 5 }),
+    () => new DefenseCard("Knight's Roar", 22, 'Blocks + may force enemy to use skill', 'taunt'),
+    () => new DefenseCard('Shadow Step', 18, 'Blocks + 30% chance to dodge next attack', 'evade'),
+    () => new DefenseCard('Iron Bulwark', 16, 'Blocks + defense lasts an extra turn', 'barrier'),
   ],
   3: [
     () => new DefenseCard('Force Field', 28, 'Blocks incoming damage'),
     () => new DefenseCard('Aegis Protocol', 38, 'Blocks a massive amount of damage'),
     () => new DefenseCard('Nano Repair', 28, 'Blocks damage and heals you', 'heal'),
     () => new DefenseCard('Reflect Barrier', 26, 'Blocks and reflects damage', 'counter'),
+    () => new DefenseCard('Void Reflector', 24, 'Reflects all damage back (no block)', 'reflect'),
+    () => new DefenseCard('Nano Regen Field', 28, 'Blocks + regenerates HP over time', 'regen',
+      { regenTurns: 3, regenAmount: 6 }),
+    () => new DefenseCard('Plasma Taunt', 32, 'Blocks + may force enemy to use skill', 'taunt'),
+    () => new DefenseCard('Ghost Phase', 26, 'Blocks + 30% chance to dodge next attack', 'evade'),
+    () => new DefenseCard('Adamant Barrier', 24, 'Blocks + defense lasts an extra turn', 'barrier'),
   ],
 };
 

@@ -42,6 +42,7 @@ export default class CombatScene extends Phaser.Scene {
   init(data) {
     this.worldLevel    = data.worldLevel    || 1;
     this.nodeIndex     = data.nodeIndex     || 0;
+    this.battleNumber  = data.battleNumber  || null;
     this.trapChallenge = data.trapChallenge || false;
   }
 
@@ -82,6 +83,12 @@ export default class CombatScene extends Phaser.Scene {
       swapRandomCard:          false,  // Swapper chaos — card gets randomized
       secondChance:            false,  // SecondChance skill — allow one retry on wrong answer
       rogueCounter:                0,  // Rogue passive — counts successful answers
+      // --- Defense card special flags ---
+      playerRegen:                 0,  // Regen card — turns of HoT remaining
+      playerRegenAmount:           0,  // Regen card — HP per turn
+      tauntForceSkill:         false,  // Taunt card — 50% chance to force enemy skill this turn
+      evadeChance:                 0,  // Evade card — chance to dodge enemy attack this turn
+      barrierTurns:                0,  // Barrier card — extra enemy turns activeDefense persists
       playerDeck: this.player.getActiveDeck(),
     };
 
@@ -302,10 +309,10 @@ export default class CombatScene extends Phaser.Scene {
           effectValue *= 2;
         }
       }
-      const cardResult = card.apply(this.player, this.enemy, effectValue);
+      const cardResult = card.apply(this.player, this.enemy, effectValue, this.combatContext);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
       if (card.type === CARD_TYPES.DEFENSE) {
-        this.activeDefense = effectValue;
+        this.activeDefense = cardResult.defense !== undefined ? cardResult.defense : effectValue;
       }
       this.updateHP();
       if (CombatSystem.checkWin(this.enemy)) { this.handleWin(); return; }
@@ -319,7 +326,7 @@ export default class CombatScene extends Phaser.Scene {
     // Lock all cards — no switching allowed once problem is shown
     this.cardObjects.forEach((obj) => obj.disableInteractive());
 
-    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0, this.battleNumber);
     this.problemText.setText(`${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);
@@ -395,12 +402,13 @@ export default class CombatScene extends Phaser.Scene {
         }
       }
 
-      const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue);
+      const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue, this.combatContext);
       this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
       // Store defense value so enemy attack this turn can be reduced
+      // Use cardResult.defense (reflect card returns 0 → no block, just reflects)
       if (this.selectedCard.type === CARD_TYPES.DEFENSE) {
-        this.activeDefense = effectValue;
+        this.activeDefense = cardResult.defense !== undefined ? cardResult.defense : effectValue;
       }
 
       // Unlock any CardThief-locked card (lock persists until a correct answer)
@@ -474,48 +482,80 @@ export default class CombatScene extends Phaser.Scene {
       }
     }
 
-    const action = this.enemy.getAction();
-    let msg = bleedMsg; // prepend bleed tick info if present
+    // Evade card — roll once per enemy turn. Dodges all damage this turn.
+    let evaded = false;
+    if (this.combatContext.evadeChance > 0 && Math.random() < this.combatContext.evadeChance) {
+      evaded = true;
+    }
+    this.combatContext.evadeChance = 0; // consume regardless
+
+    // Taunt card — 50% chance to force enemy to use a skill this turn
+    let action = this.enemy.getAction();
+    if (this.combatContext.tauntForceSkill) {
+      this.combatContext.tauntForceSkill = false;
+      if (Math.random() < 0.5) {
+        action = 'skill';
+      }
+    }
+
+    let msg = bleedMsg;
 
     if (action === 'skill') {
       // Enemy uses its unique skill — may mutate combatContext
       const skillResult = this.enemy.useSkill(this.player, this.combatContext);
-      msg = skillResult ? skillResult.message : '';
+      msg = bleedMsg + (skillResult ? skillResult.message : '');
 
       // Skill enemies also attack unless the skill flagged a skip (Titan charging)
       if (!this.combatContext.enemySkipAttack) {
         let damage = this.enemy.attackPower;
         damage = Math.round(damage * this.combatContext.enemyDamageBoost);
-        CombatSystem.enemyTurn(this.enemy, this.player, this.activeDefense);
-        msg += `\n${this.enemy.name} attacks for ${damage} damage!`;
+        if (evaded) {
+          msg += `\n${this.player.name} evades the attack!`;
+        } else {
+          CombatSystem.enemyTurn(this.enemy, this.player, this.activeDefense);
+          msg += `\n${this.enemy.name} attacks for ${damage} damage!`;
+        }
       }
     } else {
       // Standard attack — spread a modified clone to pass boosted damage cleanly
       let damage = this.enemy.attackPower;
       damage = Math.round(damage * this.combatContext.enemyDamageBoost);
-      CombatSystem.enemyTurn(
-        { ...this.enemy, attackPower: damage },
-        this.player,
-        this.activeDefense
-      );
-      msg = `${this.enemy.name} attacks for ${damage} damage!`;
-      if (this.activeDefense > 0) {
-        msg += ` (Blocked ${this.activeDefense})`;
+      if (evaded) {
+        msg = bleedMsg + `${this.enemy.name} attacks but ${this.player.name} evades!`;
+      } else {
+        CombatSystem.enemyTurn(
+          { ...this.enemy, attackPower: damage },
+          this.player,
+          this.activeDefense
+        );
+        msg = bleedMsg + `${this.enemy.name} attacks for ${damage} damage!`;
+        if (this.activeDefense > 0) {
+          msg += ` (Blocked ${this.activeDefense})`;
+        }
       }
     }
 
-    // VampireKing double action — second hit after the main turn
+    // VampireKing double action — also blocked by evade
     if (this.combatContext.enemyDoubleAction) {
       const bonusDmg = this.enemy.attackPower;
-      this.player.takeDamage(bonusDmg);
-      msg += `\nDouble action! Extra ${bonusDmg} damage!`;
+      if (!evaded) {
+        this.player.takeDamage(bonusDmg);
+        msg += `\nDouble action! Extra ${bonusDmg} damage!`;
+      } else {
+        msg += `\nDouble action evaded!`;
+      }
       this.combatContext.enemyDoubleAction = false;
     }
 
     // Reset turn-scoped context flags
     this.combatContext.enemyDamageBoost  = 1;
     this.combatContext.enemySkipAttack   = false;
-    this.activeDefense = 0;
+    // Barrier card — keep activeDefense for one extra enemy turn
+    if (this.combatContext.barrierTurns > 0) {
+      this.combatContext.barrierTurns -= 1;
+    } else {
+      this.activeDefense = 0;
+    }
 
     this.messageText.setText(msg);
     this.updateHP();
@@ -578,6 +618,15 @@ export default class CombatScene extends Phaser.Scene {
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
+
+    // Regen card — apply HoT tick at the start of each new player turn
+    if (this.combatContext.playerRegen > 0) {
+      const amount = this.combatContext.playerRegenAmount || 0;
+      this.player.heal(amount);
+      this.combatContext.playerRegen -= 1;
+      this.messageText.setText(`Regenerated ${amount} HP! (${this.combatContext.playerRegen} turns left)`);
+      this.updateHP();
+    }
 
     // Destroy old card GameObjects and redraw to reflect any state changes
     this.cardObjects.forEach((obj) => obj.destroy());
@@ -676,7 +725,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   startTrapChallenge() {
     this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
-    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0);
+    this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0, this.battleNumber);
     this.problemText.setText(`TRAP! Solve: ${this.currentProblem.text} = ?`);
     this.inputText = '';
     this.inputBg.setVisible(true);
