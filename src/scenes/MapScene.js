@@ -161,20 +161,36 @@ export default class MapScene extends Phaser.Scene {
    * {object} map
    */
   handleNodeAction(node, map) {
+    // 1-indexed count of battles the player will have fought after this one.
+    // Counts completed BATTLE/BOSS nodes + 1 (the one being entered now).
+    const battleNumber = map.nodes.filter(
+      (n) => (n.type === MapSystem.NODE_TYPES.BATTLE || n.type === MapSystem.NODE_TYPES.BOSS) && n.completed
+    ).length + 1;
+
     if (node.type === MapSystem.NODE_TYPES.BATTLE) {
       const enemy = EnemyFactory.createRandomEnemy();
       this.registry.set('currentEnemy', enemy);
       this.registry.set('isBoss', false);
-      this.scene.start('CombatScene', { worldLevel: this.worldLevel, nodeIndex: node.id });
+      this.scene.start('CombatScene', {
+        worldLevel: this.worldLevel,
+        nodeIndex: node.id,
+        battleNumber,
+      });
 
     } else if (node.type === MapSystem.NODE_TYPES.BOSS) {
       const boss = EnemyFactory.createBoss(this.worldLevel);
       this.registry.set('currentEnemy', boss);
       this.registry.set('isBoss', true);
-      this.scene.start('CombatScene', { worldLevel: this.worldLevel, nodeIndex: node.id });
+      // Boss always uses the world's MAX tier regardless of path length.
+      // For W1, max tier is 5 (40-80, 2 signs). Short paths shouldn't yield an easy boss.
+      this.scene.start('CombatScene', {
+        worldLevel: this.worldLevel,
+        nodeIndex: node.id,
+        battleNumber: 5,
+      });
 
     } else if (node.type === MapSystem.NODE_TYPES.CHEST) {
-      this.handleChest(node, map);
+      this.handleChest(node, map, battleNumber);
     }
   }
 
@@ -184,7 +200,7 @@ export default class MapScene extends Phaser.Scene {
    * TRAP chests have a 50% chance of spawning a trap enemy or a math challenge.
    * {object} node
    */
-  handleChest(node, map) {
+  handleChest(node, map, battleNumber) {
     if (node.chestType === MapSystem.CHEST_TYPES.REWARD) {
       node.completed = true;
       this.scene.start('RewardScene', {
@@ -200,13 +216,18 @@ export default class MapScene extends Phaser.Scene {
         this.registry.set('currentEnemy', enemy);
         this.registry.set('isBoss', false);
         node.completed = true;
-        this.scene.start('CombatScene', { worldLevel: this.worldLevel, nodeIndex: node.id });
+        this.scene.start('CombatScene', {
+          worldLevel: this.worldLevel,
+          nodeIndex: node.id,
+          battleNumber,
+        });
       } else {
         // 50%: single math problem challenge (no full combat)
         node.completed = true;
         this.scene.start('CombatScene', {
           worldLevel: this.worldLevel,
           nodeIndex: node.id,
+          battleNumber,
           trapChallenge: true,
         });
       }

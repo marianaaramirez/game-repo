@@ -43,11 +43,11 @@ function generateW1Tier1() {
 }
 
 /**
- * World 1 — Tier 2: 2-digit operands (10–49), one +/- sign.
+ * World 1 — Tier 2: 2-digit operands (10–39), one +/- sign.
  */
 function generateW1Tier2() {
-  const a = randInt(10, 49);
-  const b = randInt(10, 49);
+  const a = randInt(10, 39);
+  const b = randInt(10, 39);
   if (Math.random() < 0.5) {
     return { text: `${a} + ${b}`, answer: a + b, operation: OPERATIONS.ADDITION };
   }
@@ -57,11 +57,11 @@ function generateW1Tier2() {
 }
 
 /**
- * World 1 — Tier 3: 2-digit operands (50–89), one +/- sign.
+ * World 1 — Tier 3: 2-digit operands (40–80), one +/- sign.
  */
 function generateW1Tier3() {
-  const a = randInt(50, 89);
-  const b = randInt(50, 89);
+  const a = randInt(40, 80);
+  const b = randInt(40, 80);
   if (Math.random() < 0.5) {
     return { text: `${a} + ${b}`, answer: a + b, operation: OPERATIONS.ADDITION };
   }
@@ -71,35 +71,58 @@ function generateW1Tier3() {
 }
 
 /**
- * World 1 — Tier 4: 3 operands (10–49), two +/- signs.
- * Boss node difficulty. Result always stays non-negative.
+ * Shared 3-operand +/- generator with non-negative result guarantee.
  */
-function generateW1Tier4() {
-  const a = randInt(10, 49);
-  const b = randInt(10, 49);
-  const c = randInt(10, 49);
+function generate3Term(min, max) {
+  const a = randInt(min, max);
+  const b = randInt(min, max);
+  const c = randInt(min, max);
   const ops = ['+', '-'];
   const op1 = ops[Math.floor(Math.random() * 2)];
   const op2 = ops[Math.floor(Math.random() * 2)];
-  let answer = a + (op1 === '+' ? b : -b) + (op2 === '+' ? c : -c);
-  // If result negative, flip second operator
+  const answer = a + (op1 === '+' ? b : -b) + (op2 === '+' ? c : -c);
+  // Negative result fallback — use all-positive expression to keep answers in range
   if (answer < 0) {
-    const flipped = op2 === '+' ? '-' : '+';
-    answer = a + (op1 === '+' ? b : -b) + (flipped === '+' ? c : -c);
-    return { text: `${a} ${op1} ${b} ${flipped} ${c}`, answer, operation: OPERATIONS.MIXED };
+    return { text: `${a} + ${b} + ${c}`, answer: a + b + c, operation: OPERATIONS.MIXED };
   }
   return { text: `${a} ${op1} ${b} ${op2} ${c}`, answer, operation: OPERATIONS.MIXED };
 }
 
 /**
- * Picks the correct World 1 generator based on node index.
- * @param {number} nodeIndex
+ * World 1 — Tier 4: 3 operands (10–39), two +/- signs.
+ */
+function generateW1Tier4() {
+  return generate3Term(10, 39);
+}
+
+/**
+ * World 1 — Tier 5 (boss): 3 operands (40–80), two +/- signs.
+ */
+function generateW1Tier5() {
+  return generate3Term(40, 80);
+}
+
+/**
+ * World 1 selector — picks tier from 1 to 5 based on how many battles
+ * the player has fought in this map (1-indexed: 1 = first battle).
+ * @param {number} battleNumber
+ */
+function generateW1ByBattle(battleNumber = 1) {
+  if (battleNumber <= 1) return generateW1Tier1();
+  if (battleNumber <= 2) return generateW1Tier2();
+  if (battleNumber <= 3) return generateW1Tier3();
+  if (battleNumber <= 4) return generateW1Tier4();
+  return generateW1Tier5();
+}
+
+/**
+ * Legacy node-index based selector (kept for trap chest problems).
  */
 function generateWorld1(nodeIndex = 0) {
   if (nodeIndex <= 1) return generateW1Tier1();
   if (nodeIndex <= 5) return generateW1Tier2();
   if (nodeIndex <= 6) return generateW1Tier3();
-  return generateW1Tier4(); // node 7+ (boss node 8)
+  return generateW1Tier4();
 }
 
 /**
@@ -347,8 +370,14 @@ function generateLevel3() {
  * @param {number} nodeIndex  - Current map node (used for World 1 tier selection)
  * @returns {{ text: string, answer: number, operation: string }}
  */
-function generate(worldLevel = 1, nodeIndex = 0, tierOffset = 0) {
-  // Apply tier offset (e.g. Mage passive shifts difficulty down)
+function generate(worldLevel = 1, nodeIndex = 0, tierOffset = 0, battleNumber = null) {
+  // World 1 uses battleNumber-based tiers when provided (more accurate than nodeIndex
+  // for branching maps where players may skip nodes).
+  if (worldLevel === 1 && battleNumber !== null) {
+    const effectiveBattle = Math.max(1, battleNumber + tierOffset);
+    return generateW1ByBattle(effectiveBattle);
+  }
+  // Other worlds (and trap-chest fallbacks) use the legacy nodeIndex tier picker.
   const effectiveIndex = Math.max(0, nodeIndex + tierOffset);
   switch (worldLevel) {
     case 2:  return generateWorld2(effectiveIndex);
