@@ -148,33 +148,48 @@ function generateExactDivision() {
 }
 
 /**
- * World 2 — Tier 1: 1-digit × 1-digit or division.
+ * World 2 — Tier 1: 1-digit × 1-digit multiplication only.
  */
 function generateW2Tier1() {
-  if (Math.random() < 0.5) {
-    const a = randInt(1, 9);
-    const b = randInt(1, 9);
-    return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
-  }
-  return generateExactDivision();
+  const a = randInt(1, 9);
+  const b = randInt(1, 9);
+  return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
 }
 
 /**
- * World 2 — Tier 2: operands 1–10 multiplication or division.
+ * World 2 — Tier 2: 1-digit × 2-digit (10–19) multiplication only.
  */
 function generateW2Tier2() {
+  const a = randInt(1, 9);
+  const b = randInt(10, 19);
+  return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
+}
+
+/**
+ * World 2 — Tier 3: same as Tier 2 multiplication + 50% exact division.
+ */
+function generateW2Tier3() {
   if (Math.random() < 0.5) {
-    const a = randInt(1, 10);
-    const b = randInt(1, 10);
+    const a = randInt(1, 9);
+    const b = randInt(10, 19);
     return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
   }
   return generateExactDivision();
 }
 
 /**
- * World 2 — Tier 3: 2-digit (11–20) × 1-digit or division.
+ * World 2 — Tier 4: 2-digit (11–20) × 1-digit multiplication only.
  */
-function generateW2Tier3() {
+function generateW2Tier4() {
+  const a = randInt(11, 20);
+  const b = randInt(1, 9);
+  return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
+}
+
+/**
+ * World 2 — Tier 5 (boss): Tier 4 multiplication + 50% exact division.
+ */
+function generateW2Tier5() {
   if (Math.random() < 0.5) {
     const a = randInt(11, 20);
     const b = randInt(1, 9);
@@ -184,49 +199,26 @@ function generateW2Tier3() {
 }
 
 /**
- * World 2 — Tier 4: a × b × c with 1-digit numbers (2 multiplication signs).
- * 50% mult chain, 50% division.
+ * World 2 selector — picks tier from 1 to 5 based on battles fought.
+ * @param {number} battleNumber
  */
-function generateW2Tier4() {
-  if (Math.random() < 0.5) {
-    const a = randInt(1, 9);
-    const b = randInt(1, 9);
-    const c = randInt(1, 9);
-    return { text: `${a} x ${b} x ${c}`, answer: a * b * c, operation: OPERATIONS.MULTIPLICATION };
-  }
-  return generateExactDivision();
+function generateW2ByBattle(battleNumber = 1) {
+  if (battleNumber <= 1) return generateW2Tier1();
+  if (battleNumber <= 2) return generateW2Tier2();
+  if (battleNumber <= 3) return generateW2Tier3();
+  if (battleNumber <= 4) return generateW2Tier4();
+  return generateW2Tier5();
 }
 
 /**
- * World 2 — Tier 5 (boss): 2-digit (40–80) operands, two +/- signs.
- * Result always kept non-negative.
- */
-function generateW2Tier5() {
-  const a   = randInt(40, 80);
-  const b   = randInt(40, 80);
-  const c   = randInt(40, 80);
-  const op1 = Math.random() < 0.5 ? '+' : '-';
-  const op2 = Math.random() < 0.5 ? '+' : '-';
-  let answer = a + (op1 === '+' ? b : -b) + (op2 === '+' ? c : -c);
-  if (answer < 0) {
-    // Flip second operator to guarantee positive result
-    const flipped = op2 === '+' ? '-' : '+';
-    answer = a + (op1 === '+' ? b : -b) + (flipped === '+' ? c : -c);
-    return { text: `${a} ${op1} ${b} ${flipped} ${c}`, answer, operation: OPERATIONS.MIXED };
-  }
-  return { text: `${a} ${op1} ${b} ${op2} ${c}`, answer, operation: OPERATIONS.MIXED };
-}
-
-/**
- * Picks the correct World 2 generator based on node index.
- * @param {number} nodeIndex
+ * Legacy node-index based selector (kept for trap chest fallback).
  */
 function generateWorld2(nodeIndex = 0) {
-  if (nodeIndex === 0)       return generateW2Tier1();
-  if (nodeIndex <= 2)        return generateW2Tier2();
-  if (nodeIndex <= 4)        return generateW2Tier3();
-  if (nodeIndex === 5)       return generateW2Tier4();
-  return generateW2Tier5(); // node 6 = boss
+  if (nodeIndex === 0)  return generateW2Tier1();
+  if (nodeIndex <= 2)   return generateW2Tier2();
+  if (nodeIndex <= 4)   return generateW2Tier3();
+  if (nodeIndex === 5)  return generateW2Tier4();
+  return generateW2Tier5();
 }
 
 /**
@@ -371,13 +363,14 @@ function generateLevel3() {
  * @returns {{ text: string, answer: number, operation: string }}
  */
 function generate(worldLevel = 1, nodeIndex = 0, tierOffset = 0, battleNumber = null) {
-  // World 1 uses battleNumber-based tiers when provided (more accurate than nodeIndex
-  // for branching maps where players may skip nodes).
-  if (worldLevel === 1 && battleNumber !== null) {
+  // Worlds 1 and 2 use battleNumber-based tiers when provided (more accurate than
+  // nodeIndex for branching maps where players may skip nodes).
+  if (battleNumber !== null) {
     const effectiveBattle = Math.max(1, battleNumber + tierOffset);
-    return generateW1ByBattle(effectiveBattle);
+    if (worldLevel === 1) return generateW1ByBattle(effectiveBattle);
+    if (worldLevel === 2) return generateW2ByBattle(effectiveBattle);
   }
-  // Other worlds (and trap-chest fallbacks) use the legacy nodeIndex tier picker.
+  // World 3 (and any fallback) still uses the legacy nodeIndex picker.
   const effectiveIndex = Math.max(0, nodeIndex + tierOffset);
   switch (worldLevel) {
     case 2:  return generateWorld2(effectiveIndex);
