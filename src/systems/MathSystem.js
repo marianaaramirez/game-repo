@@ -229,13 +229,20 @@ function generateLevel2() {
 }
 
 /**
- * World 3 — Tier 1 & 2: 1-digit numbers, 2 signs (+ and ×).
- * Expressions: a + b × c  or  a × b + c
+ * Operand range helpers for World 3 tiers.
  */
-function generateW3Tier1() {
-  const a = randInt(1, 9);
-  const b = randInt(1, 9);
-  const c = randInt(1, 9);
+function w3OneDigit()  { return randInt(1, 9); }
+function w3Two10_19()  { return randInt(10, 19); }
+function w3Mixed()     { return Math.random() < 0.5 ? randInt(1, 9) : randInt(10, 19); }
+
+/**
+ * Picks one of two patterns: a + b × c  or  a × b + c.
+ * Used for tiers that only allow addition and multiplication.
+ */
+function w3PlusMult(rangeFn) {
+  const a = rangeFn();
+  const b = rangeFn();
+  const c = rangeFn();
   if (Math.random() < 0.5) {
     return { text: `${a} + ${b} x ${c}`, answer: a + b * c, operation: OPERATIONS.MIXED };
   }
@@ -243,14 +250,13 @@ function generateW3Tier1() {
 }
 
 /**
- * World 3 — Tier 3: 1–2 digit (1–10), 2 signs (any operator).
- * Picks from: a+b×c, a×b+c, a×b-c, a+b-c, a-b+c.
- * Result always kept non-negative.
+ * Picks one of 5 patterns mixing +, -, ×.
+ * Always returns a non-negative result.
  */
-function generateW3Tier3() {
-  const a = randInt(1, 10);
-  const b = randInt(1, 10);
-  const c = randInt(1, 10);
+function w3AnyOps(rangeFn) {
+  const a = rangeFn();
+  const b = rangeFn();
+  const c = rangeFn();
   const type = Math.floor(Math.random() * 5);
 
   if (type === 0) {
@@ -265,58 +271,52 @@ function generateW3Tier3() {
     return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
   }
   if (type === 3) {
-    const sum = a + b;
-    const result = sum - c;
+    const result = a + b - c;
     if (result >= 0) return { text: `${a} + ${b} - ${c}`, answer: result, operation: OPERATIONS.MIXED };
-    return { text: `${a} + ${b} + ${c}`, answer: sum + c, operation: OPERATIONS.MIXED };
+    return { text: `${a} + ${b} + ${c}`, answer: a + b + c, operation: OPERATIONS.MIXED };
   }
-  // type === 4: a - b + c, ensure a >= b
+  // type 4: a - b + c, ensure a >= b for non-negative result
   const big = Math.max(a, b);
   const small = Math.min(a, b);
   return { text: `${big} - ${small} + ${c}`, answer: big - small + c, operation: OPERATIONS.MIXED };
 }
 
+/** World 3 — Tier 1: 1-digit, 2 signs (+ and ×). */
+function generateW3Tier1() { return w3PlusMult(w3OneDigit); }
+
+/** World 3 — Tier 2: 1-digit, 2 signs (any operator). */
+function generateW3Tier2() { return w3AnyOps(w3OneDigit); }
+
+/** World 3 — Tier 3: mixed 1-digit / 2-digit (10-19), 2 signs (+ and ×). */
+function generateW3Tier3() { return w3PlusMult(w3Mixed); }
+
+/** World 3 — Tier 4: mixed 1-digit / 2-digit (10-19), 2 signs (any operator). */
+function generateW3Tier4() { return w3AnyOps(w3Mixed); }
+
+/** World 3 — Tier 5 (boss): 2-digit (10-19) only, 2 signs (any operator). */
+function generateW3Tier5() { return w3AnyOps(w3Two10_19); }
+
 /**
- * World 3 — Tier 4 (boss): 2-digit (11–20), 2 signs (any operator).
- * Same expression patterns as Tier 3 but with larger numbers.
+ * World 3 selector — picks tier from 1 to 5 based on battles fought.
+ * @param {number} battleNumber
  */
-function generateW3Tier4() {
-  const a = randInt(11, 20);
-  const b = randInt(11, 20);
-  const c = randInt(11, 20);
-  const type = Math.floor(Math.random() * 5);
-
-  if (type === 0) {
-    return { text: `${a} + ${b} x ${c}`, answer: a + b * c, operation: OPERATIONS.MIXED };
-  }
-  if (type === 1) {
-    return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
-  }
-  if (type === 2) {
-    const result = a * b - c;
-    if (result >= 0) return { text: `${a} x ${b} - ${c}`, answer: result, operation: OPERATIONS.MIXED };
-    return { text: `${a} x ${b} + ${c}`, answer: a * b + c, operation: OPERATIONS.MIXED };
-  }
-  if (type === 3) {
-    const sum = a + b;
-    const result = sum - c;
-    if (result >= 0) return { text: `${a} + ${b} - ${c}`, answer: result, operation: OPERATIONS.MIXED };
-    return { text: `${a} + ${b} + ${c}`, answer: sum + c, operation: OPERATIONS.MIXED };
-  }
-  const big = Math.max(a, b);
-  const small = Math.min(a, b);
-  return { text: `${big} - ${small} + ${c}`, answer: big - small + c, operation: OPERATIONS.MIXED };
+function generateW3ByBattle(battleNumber = 1) {
+  if (battleNumber <= 1) return generateW3Tier1();
+  if (battleNumber <= 2) return generateW3Tier2();
+  if (battleNumber <= 3) return generateW3Tier3();
+  if (battleNumber <= 4) return generateW3Tier4();
+  return generateW3Tier5();
 }
 
 /**
- * Picks the correct World 3 generator based on node index.
- * @param {number} nodeIndex
+ * Legacy node-index based selector (kept for trap chest fallback).
  */
 function generateWorld3(nodeIndex = 0) {
   if (nodeIndex === 0)  return generateW3Tier1();
-  if (nodeIndex <= 2)   return generateW3Tier1(); // tier 2 = same as tier 1
-  if (nodeIndex <= 6)   return generateW3Tier3();
-  return generateW3Tier4();                        // node 7 = boss
+  if (nodeIndex <= 2)   return generateW3Tier2();
+  if (nodeIndex <= 4)   return generateW3Tier3();
+  if (nodeIndex <= 6)   return generateW3Tier4();
+  return generateW3Tier5();
 }
 
 /**
@@ -369,6 +369,7 @@ function generate(worldLevel = 1, nodeIndex = 0, tierOffset = 0, battleNumber = 
     const effectiveBattle = Math.max(1, battleNumber + tierOffset);
     if (worldLevel === 1) return generateW1ByBattle(effectiveBattle);
     if (worldLevel === 2) return generateW2ByBattle(effectiveBattle);
+    if (worldLevel === 3) return generateW3ByBattle(effectiveBattle);
   }
   // World 3 (and any fallback) still uses the legacy nodeIndex picker.
   const effectiveIndex = Math.max(0, nodeIndex + tierOffset);
