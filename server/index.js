@@ -13,7 +13,10 @@ import dotenv  from 'dotenv';
 import path    from 'path';
 import { fileURLToPath } from 'url';
 
-import authRoutes from './routes/auth.js';
+import authRoutes    from './routes/auth.js';
+import runRoutes     from './routes/run.js';
+import combatRoutes  from './routes/combat.js';
+import catalogRoutes from './routes/catalog.js';
 
 // Load .env relative to this file (so `node server/index.js` works from any cwd)
 const __filename = fileURLToPath(import.meta.url);
@@ -34,6 +37,9 @@ app.get('/api/health', (req, res) => {
 
 // --- Routes ---
 app.use('/api', authRoutes);
+app.use('/api', runRoutes);
+app.use('/api', combatRoutes);
+app.use('/api', catalogRoutes);
 
 // --- 404 handler ---
 app.use((req, res) => {
