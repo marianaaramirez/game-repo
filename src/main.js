@@ -7,6 +7,7 @@
  */
 
 import Phaser from 'phaser';
+import LoginScene from './scenes/LoginScene.js';
 import HomeScene from './scenes/HomeScene.js';
 import CharSelectScene from './scenes/CharSelectScene.js';
 import InstructionsScene from './scenes/InstructionsScene.js';
@@ -22,12 +23,15 @@ const config = {
   height: 600,
   backgroundColor: '#1a1a2e',
   parent: document.body,
+  // Enable DOM overlay (HTML inputs in LoginScene)
+  dom: { createContainer: true },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  // Scene order — the first entry (HomeScene) loads on startup
+  // Scene order — LoginScene loads first; it routes to HomeScene after auth (or skip)
   scene: [
+    LoginScene,
     HomeScene,
     CharSelectScene,
     InstructionsScene,

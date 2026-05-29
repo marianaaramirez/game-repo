@@ -29,6 +29,7 @@ import MathSystem from '../systems/MathSystem.js';
 import TimerSystem from '../systems/TimerSystem.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
+import { postProblem, postCombat, updateRun, getEnemyIDByName, getCardIDByName } from '../api.js';
 
 export default class CombatScene extends Phaser.Scene {
   constructor() {
@@ -91,6 +92,12 @@ export default class CombatScene extends Phaser.Scene {
       barrierTurns:                0,  // Barrier card — extra enemy turns activeDefense persists
       playerDeck: this.player.getActiveDeck(),
     };
+
+    // --- Backend tracking (separate from combatContext so it isn't reset by enemy turn) ---
+    this.cardsUsedThisCombat = [];     // [{ cardID, turn_number }]
+    this.turnCount           = 1;
+    this.totalDamageDealt    = 0;
+    this.lastProblemID       = null;
 
     this.drawBattleUI();
     this.drawCards();
@@ -277,6 +284,7 @@ export default class CombatScene extends Phaser.Scene {
 
     // Skill cards: apply effect immediately, then pass turn to the enemy
     if (card.type === CARD_TYPES.SKILL) {
+      this.trackCardUsed(card);
       const result = card.apply(this.player, this.enemy, 0);
       this.messageText.setText(result.message);
 
@@ -309,7 +317,10 @@ export default class CombatScene extends Phaser.Scene {
           effectValue *= 2;
         }
       }
+      this.trackCardUsed(card);
+      const hpBefore   = this.enemy.hp;
       const cardResult = card.apply(this.player, this.enemy, effectValue, this.combatContext);
+      this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
       if (card.type === CARD_TYPES.DEFENSE) {
         this.activeDefense = cardResult.defense !== undefined ? cardResult.defense : effectValue;
@@ -391,6 +402,9 @@ export default class CombatScene extends Phaser.Scene {
     if (this.selectedCard.special !== 'pierce') {
       effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
     }
+    // Backend tracking — log this math problem attempt (fire-and-forget)
+    this.logProblem(result.success, elapsed);
+
     if (result.success) {
       // Rogue passive: every 2nd successful answer doubles the effect
       let rogueMsg = '';
@@ -402,7 +416,10 @@ export default class CombatScene extends Phaser.Scene {
         }
       }
 
+      this.trackCardUsed(this.selectedCard);
+      const hpBefore   = this.enemy.hp;
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue, this.combatContext);
+      this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
       // Store defense value so enemy attack this turn can be reduced
@@ -591,6 +608,9 @@ export default class CombatScene extends Phaser.Scene {
       return;
     }
 
+    // Backend tracking — log this problem as timed out / incorrect
+    this.logProblem(false, this.timerDuration);
+
     // Flip state OUT of MATH_PROBLEM so keyboard input is ignored
     this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
     this.messageText.setText('Time out! No effect.');
@@ -618,6 +638,7 @@ export default class CombatScene extends Phaser.Scene {
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
+    this.turnCount   += 1;
 
     // Regen card — apply HoT tick at the start of each new player turn
     if (this.combatContext.playerRegen > 0) {
@@ -648,6 +669,21 @@ export default class CombatScene extends Phaser.Scene {
       if (node) node.completed = true;
     }
 
+    // Backend tracking — log combat win + bump run.enemies_defeated.
+    // If this was a boss kill, also mark run as won.
+    this.logCombatResult('win');
+    const newDefeated = (this.registry.get('runEnemiesDefeated') || 0) + 1;
+    this.registry.set('runEnemiesDefeated', newDefeated);
+    const runID = this.registry.get('runID');
+    if (runID) {
+      const fields = { enemies_defeated: newDefeated };
+      if (this.isBoss) {
+        fields.result   = 'win';
+        fields.duration = this.computeRunDuration();
+      }
+      updateRun(runID, fields);
+    }
+
     this.messageText.setText('VICTORY!');
     this.problemText.setText(`${this.enemy.name} defeated!`).setColor('#44ff44');
 
@@ -667,6 +703,17 @@ export default class CombatScene extends Phaser.Scene {
    */
   handleLose() {
     this.combatState = CombatSystem.COMBAT_STATE.LOSE;
+
+    // Backend tracking — log combat loss + close out the Run
+    this.logCombatResult('lose');
+    const runID = this.registry.get('runID');
+    if (runID) {
+      updateRun(runID, {
+        result:   'lose',
+        duration: this.computeRunDuration(),
+      });
+    }
+
     this.messageText.setText('DEFEAT...');
     this.problemText.setText('You have been defeated!').setColor('#ff4444');
 
@@ -734,5 +781,82 @@ export default class CombatScene extends Phaser.Scene {
     this.timerBarFill.setVisible(true);
     this.timerActive    = true;
     this.messageText.setText('Solve the problem to escape the trap!');
+  }
+
+  // ============================================================
+  // Backend tracking helpers
+  // ============================================================
+
+  /**
+   * Records a played card into the per-combat tracking array.
+   * Looks up the DB cardID by name from the cached catalog.
+   */
+  trackCardUsed(card) {
+    const cardID = getCardIDByName(card.name);
+    if (cardID) {
+      this.cardsUsedThisCombat.push({ cardID, turn_number: this.turnCount });
+    }
+  }
+
+  /**
+   * Sends a POST /api/problem with the current problem context.
+   * Fire-and-forget — never blocks combat.
+   */
+  async logProblem(isCorrect, elapsedMs) {
+    if (this.registry.get('authMode') !== 'online') return;
+    const runID = this.registry.get('runID');
+    if (!runID || !this.currentProblem) return;
+
+    const playerAnswer = parseInt(this.inputText, 10);
+    const res = await postProblem({
+      runID,
+      world_level:   this.worldLevel,
+      battle_number: this.battleNumber || 1,
+      difficulty:    `tier_${this.battleNumber || 1}`,
+      op_type:       this.currentProblem.operation,
+      expression:    this.currentProblem.text,
+      answer:        this.currentProblem.answer,
+      player_answer: isNaN(playerAnswer) ? null : playerAnswer,
+      response_time: Math.round(elapsedMs),
+      is_correct:    !!isCorrect,
+    });
+    if (res.ok) {
+      this.lastProblemID = res.data.problemID;
+    }
+  }
+
+  /**
+   * Sends a POST /api/combat at the end of the encounter.
+   * Includes all cards used and the linked last problem.
+   */
+  async logCombatResult(combatResult) {
+    if (this.registry.get('authMode') !== 'online') return;
+    const runID = this.registry.get('runID');
+    if (!runID) return;
+
+    const enemyID = getEnemyIDByName(this.enemy.name);
+    if (!enemyID) return;
+
+    // Derive timer zone from last problem performance — fallback to 'green' on win, 'timeout' on lose
+    const timer_result = combatResult === 'win' ? 'green' : 'timeout';
+
+    await postCombat({
+      runID,
+      enemyID,
+      problemID:     this.lastProblemID,
+      timer_result,
+      damage_dealt:  Math.round(this.totalDamageDealt),
+      combat_result: combatResult,
+      cards_used:    this.cardsUsedThisCombat,
+    });
+  }
+
+  /**
+   * Returns seconds elapsed since the run started (clamped to 0).
+   */
+  computeRunDuration() {
+    const start = this.registry.get('runStartTime');
+    if (!start) return 0;
+    return Math.max(0, Math.round((Date.now() - start) / 1000));
   }
 }

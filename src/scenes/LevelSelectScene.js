@@ -19,6 +19,7 @@
  */
 
 import Phaser from 'phaser';
+import { createRun } from '../api.js';
 
 // Definition of each selectable level
 const LEVELS = [
@@ -80,9 +81,24 @@ export default class LevelSelectScene extends Phaser.Scene {
       bg.on('pointerover', () => bg.setStrokeStyle(4, 0xffcc00));
       bg.on('pointerout',  () => bg.setStrokeStyle(3, isCleared ? 0xffcc00 : 0xffffff));
 
-      // Entering a level clears the stored map so a fresh one is generated
-      bg.on('pointerdown', () => {
+      // Entering a level clears the stored map so a fresh one is generated.
+      // Also creates a Run on the backend if the player is logged in.
+      bg.on('pointerdown', async () => {
         this.registry.set('currentMap', null);
+        this.registry.set('runStartTime', Date.now());
+        this.registry.set('runEnemiesDefeated', 0);
+
+        // Fire-and-forget backend Run creation (online mode only)
+        if (this.registry.get('authMode') === 'online') {
+          const skin   = this.registry.get('selectedSkin') || 0;
+          const res    = await createRun(lvl.world, skin);
+          if (res.ok) {
+            this.registry.set('runID', res.data.runID);
+          } else {
+            this.registry.set('runID', null);
+          }
+        }
+
         this.scene.start('DeckBuildScene', { worldLevel: lvl.world });
       });
     });
