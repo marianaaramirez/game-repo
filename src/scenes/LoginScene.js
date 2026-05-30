@@ -1,10 +1,11 @@
 /**
  * LoginScene.js
- * Authentication screen. Player enters username + password to log in or register.
+ * Authentication screen with two modes: LOGIN and REGISTER.
+ * Player can switch modes via the tabs at the top.
  * Successful auth stores the JWT in localStorage and bootstraps the catalog cache.
  *
- * Inputs use HTML <input> elements overlaid on the Phaser canvas (Phaser DOM support).
- * Requires `dom: { createContainer: true }` in the Phaser game config (main.js).
+ * Inputs use HTML <input> elements overlaid on the Phaser canvas.
+ * Requires `dom: { createContainer: true }` in the Phaser game config.
  *
  * Navigation:
  *   Login OK     → HomeScene
@@ -15,9 +16,12 @@
 import Phaser from 'phaser';
 import { login, register, setToken, getToken, getMe, bootstrapCatalog } from '../api.js';
 
+const MIN_PASSWORD_LEN = 6;
+
 export default class LoginScene extends Phaser.Scene {
   constructor() {
     super('LoginScene');
+    this.mode = 'login'; // 'login' | 'register'
   }
 
   async create() {
@@ -34,48 +38,86 @@ export default class LoginScene extends Phaser.Scene {
         this.scene.start('HomeScene');
         return;
       }
-      // Token invalid — fall through to the login form
     }
 
+    this.drawUI();
+  }
+
+  drawUI() {
     // Title
-    this.add.text(400, 80, 'MATH SMASH', {
-      fontSize: '40px',
+    this.add.text(400, 60, 'MATH SMASH', {
+      fontSize: '36px',
       fontFamily: 'Arial Black, Arial',
       color: '#ffcc00',
       stroke: '#000',
-      strokeThickness: 5,
+      strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.add.text(400, 130, 'Sign in to track your progress', {
-      fontSize: '16px', fontFamily: 'Arial', color: '#aaaaaa',
+    // Mode tabs
+    this.loginTabBg    = this.add.rectangle(310, 130, 160, 38, this.mode === 'login'    ? 0x44aa44 : 0x333344, 0.9)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0xffffff);
+    this.add.text(310, 130, 'LOG IN', {
+      fontSize: '15px', fontFamily: 'Arial Black', color: '#ffffff',
     }).setOrigin(0.5);
+    this.loginTabBg.on('pointerdown', () => this.switchMode('login'));
 
-    // Username input (DOM overlay)
-    this.add.text(400, 180, 'Username', {
+    this.registerTabBg = this.add.rectangle(490, 130, 160, 38, this.mode === 'register' ? 0x4466aa : 0x333344, 0.9)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0xffffff);
+    this.add.text(490, 130, 'CREATE ACCOUNT', {
+      fontSize: '15px', fontFamily: 'Arial Black', color: '#ffffff',
+    }).setOrigin(0.5);
+    this.registerTabBg.on('pointerdown', () => this.switchMode('register'));
+
+    // Username field
+    this.add.text(400, 185, 'Username', {
       fontSize: '14px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
-    this.usernameInput = this.add.dom(400, 215, this.makeInput('text'));
+    this.usernameInput = this.add.dom(400, 220, this.makeInput('text'));
 
-    // Password input
-    this.add.text(400, 260, 'Password', {
+    // Password field
+    this.add.text(400, 265, 'Password', {
       fontSize: '14px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
-    this.passwordInput = this.add.dom(400, 295, this.makeInput('password'));
+    this.passwordInput = this.add.dom(400, 300, this.makeInput('password'));
+
+    // Password hint (only in register mode)
+    this.hintText = this.add.text(400, 332, this.mode === 'register' ? `Minimum ${MIN_PASSWORD_LEN} characters` : '', {
+      fontSize: '11px', fontFamily: 'Arial', color: '#888899',
+    }).setOrigin(0.5);
 
     // Status / error message
-    this.statusText = this.add.text(400, 340, '', {
+    this.statusText = this.add.text(400, 360, '', {
       fontSize: '13px', fontFamily: 'Arial', color: '#ff6666',
     }).setOrigin(0.5);
 
-    // Buttons
-    this.createButton(280, 390, 'LOGIN',    0x44aa44, () => this.handleLogin());
-    this.createButton(520, 390, 'REGISTER', 0x4466aa, () => this.handleRegister());
-    this.createButton(400, 460, 'SKIP (offline)', 0x666666, () => this.skipAuth());
+    // Action button (label depends on mode)
+    this.actionBg = this.add.rectangle(400, 410, 240, 46, this.mode === 'login' ? 0x44aa44 : 0x4466aa, 0.95)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0xffffff);
+    this.actionLabel = this.add.text(400, 410, this.mode === 'login' ? 'LOGIN' : 'REGISTER', {
+      fontSize: '17px', fontFamily: 'Arial Black', color: '#ffffff',
+    }).setOrigin(0.5);
+    this.actionBg.on('pointerdown', () => this.handleAction());
+
+    // Skip (offline mode)
+    const skipBg = this.add.rectangle(400, 475, 200, 36, 0x555566, 0.8)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0x888899);
+    this.add.text(400, 475, 'SKIP (offline)', {
+      fontSize: '13px', fontFamily: 'Arial', color: '#ffffff',
+    }).setOrigin(0.5);
+    skipBg.on('pointerdown', () => this.skipAuth());
   }
 
-  /**
-   * Creates a styled HTML <input> element for use as a DOM overlay.
-   */
+  switchMode(newMode) {
+    if (this.mode === newMode) return;
+    this.mode = newMode;
+    // Easiest way to re-render the toggle state — restart the scene
+    this.scene.restart();
+  }
+
   makeInput(type) {
     const input = document.createElement('input');
     input.type = type;
@@ -91,27 +133,21 @@ export default class LoginScene extends Phaser.Scene {
     return input;
   }
 
-  createButton(x, y, label, color, callback) {
-    const bg = this.add.rectangle(x, y, 200, 44, color, 0.9)
-      .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0xffffff);
-    this.add.text(x, y, label, {
-      fontSize: '16px', fontFamily: 'Arial Black', color: '#ffffff',
-    }).setOrigin(0.5);
-    bg.on('pointerdown', callback);
-    return bg;
-  }
-
   getCredentials() {
     const username = this.usernameInput.node.value.trim();
     const password = this.passwordInput.node.value;
     return { username, password };
   }
 
+  handleAction() {
+    if (this.mode === 'login') this.handleLogin();
+    else                       this.handleRegister();
+  }
+
   async handleLogin() {
     const { username, password } = this.getCredentials();
     if (!username || !password) {
-      this.statusText.setText('Enter username and password');
+      this.statusText.setColor('#ff6666').setText('Enter username and password');
       return;
     }
     this.statusText.setColor('#aaaaaa').setText('Logging in...');
@@ -131,10 +167,18 @@ export default class LoginScene extends Phaser.Scene {
   async handleRegister() {
     const { username, password } = this.getCredentials();
     if (!username || !password) {
-      this.statusText.setText('Enter username and password');
+      this.statusText.setColor('#ff6666').setText('Enter username and password');
       return;
     }
-    this.statusText.setColor('#aaaaaa').setText('Registering...');
+    if (username.length < 3) {
+      this.statusText.setColor('#ff6666').setText('Username must be at least 3 characters');
+      return;
+    }
+    if (password.length < MIN_PASSWORD_LEN) {
+      this.statusText.setColor('#ff6666').setText(`Password must be at least ${MIN_PASSWORD_LEN} characters`);
+      return;
+    }
+    this.statusText.setColor('#aaaaaa').setText('Creating account...');
     const res = await register(username, password);
     if (!res.ok) {
       this.statusText.setColor('#ff6666').setText(res.error || 'Register failed');

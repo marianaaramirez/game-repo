@@ -10,6 +10,7 @@
  */
 
 import Phaser from 'phaser';
+import { clearToken } from '../api.js';
 
 export default class HomeScene extends Phaser.Scene {
   constructor() {
@@ -35,6 +36,30 @@ export default class HomeScene extends Phaser.Scene {
       color: '#ffffff',
     }).setOrigin(0.5);
 
+    // Account info (top-right) — only shown in online mode
+    const authMode = this.registry.get('authMode');
+    const username = this.registry.get('username');
+    if (authMode === 'online' && username) {
+      this.add.text(790, 18, `Logged in as: ${username}`, {
+        fontSize: '13px', fontFamily: 'Arial', color: '#aaaaaa',
+      }).setOrigin(1, 0);
+
+      // Logout button (top-right corner)
+      const logoutBg = this.add.rectangle(720, 50, 130, 30, 0xaa3333, 0.85)
+        .setInteractive({ useHandCursor: true })
+        .setStrokeStyle(2, 0xff5555);
+      this.add.text(720, 50, 'LOGOUT', {
+        fontSize: '13px', fontFamily: 'Arial Black', color: '#ffffff',
+      }).setOrigin(0.5);
+      logoutBg.on('pointerover', () => logoutBg.setFillStyle(0xcc4444, 1));
+      logoutBg.on('pointerout',  () => logoutBg.setFillStyle(0xaa3333, 0.85));
+      logoutBg.on('pointerdown', () => this.handleLogout());
+    } else if (authMode === 'offline') {
+      this.add.text(790, 18, 'Offline mode', {
+        fontSize: '13px', fontFamily: 'Arial', color: '#aaaaaa',
+      }).setOrigin(1, 0);
+    }
+
     // Main navigation button
     this.createButton(400, 360, 'PLAY', () => {
       this.scene.start('CharSelectScene');
@@ -49,6 +74,20 @@ export default class HomeScene extends Phaser.Scene {
       repeat: -1,    // Infinite loop
       ease: 'Sine.easeInOut',
     });
+  }
+
+  /**
+   * Logs the player out: clears the JWT, wipes registry state, returns to LoginScene.
+   */
+  handleLogout() {
+    clearToken();
+    this.registry.set('playerID', null);
+    this.registry.set('username', null);
+    this.registry.set('authMode', null);
+    this.registry.set('runID',    null);
+    this.registry.set('player',   null);
+    this.registry.set('currentMap', null);
+    this.scene.start('LoginScene');
   }
 
   /**
