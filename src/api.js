@@ -69,6 +69,12 @@ export const postCombat  = (data) => request('POST', '/combat',  data);
 export const getStats       = ()  => request('GET', '/stats');
 export const getLeaderboard = ()  => request('GET', '/leaderboard');
 
+// --- Skill deck (roguelike persistence) ---
+export const getSkillDeck     = ()        => request('GET',    '/skill-deck');
+export const addSkillCard     = (cardID)  => request('POST',   '/skill-deck', { cardID });
+export const equipSkillCard   = (cardID)  => request('PUT',    '/skill-deck/equip', { cardID });
+export const unequipSkillCard = ()        => request('DELETE', '/skill-deck/equip');
+
 /**
  * Fetch all enemies + all cards and build name -> ID lookup maps.
  * Cached in window.__catalog for fast lookup during combat.

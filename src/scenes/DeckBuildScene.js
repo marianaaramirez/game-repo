@@ -23,6 +23,8 @@ import Phaser from 'phaser';
 import Player from '../entities/Player.js';
 import CardFactory from '../cards/CardFactory.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
+import { getSkillByName } from '../cards/SkillCard.js';
+import { getSkillDeck, equipSkillCard, unequipSkillCard, addSkillCard, getCardIDByName } from '../api.js';
 
 // Display names per world level
 const WORLD_NAMES = { 1: 'Ancient Temple', 2: 'Castle', 3: 'Wasteland' };
@@ -40,7 +42,7 @@ export default class DeckBuildScene extends Phaser.Scene {
     this.worldLevel = data.worldLevel || 1;
   }
 
-  create() {
+  async create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
     // Create the Player on the first ever run
@@ -49,6 +51,8 @@ export default class DeckBuildScene extends Phaser.Scene {
       const skinIndex = this.registry.get('selectedSkin') || 0;
       player = new Player(skinIndex);
       this.registry.set('player', player);
+      // Restore skill deck from backend (online mode only)
+      await this.hydrateSkillDeck(player);
     }
 
     // Build the starting collection only the first time (empty collection).
@@ -237,9 +241,61 @@ export default class DeckBuildScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       bg.on('pointerdown', () => {
-        this.player.toggleSkillCard(card);
+        const result = this.player.toggleSkillCard(card);
+        this.syncSkillEquip(card, result);
         this.scene.restart();
       });
     });
+  }
+
+  // ============================================================
+  // Backend sync helpers
+  // ============================================================
+
+  /**
+   * Loads the player's owned skill cards from the backend and rebuilds
+   * player.skillCards + player.selectedSkill on the client.
+   * Skips silently in offline mode or on network failure.
+   */
+  async hydrateSkillDeck(player) {
+    if (this.registry.get('authMode') !== 'online') return;
+    const res = await getSkillDeck();
+    if (!res.ok || !Array.isArray(res.data)) return;
+
+    res.data.forEach((row) => {
+      const card = getSkillByName(row.name);
+      if (!card) return;
+      // Tag the card so syncSkillEquip can find its DB cardID later
+      card.dbCardID = row.cardID;
+      player.skillCards.push(card);
+      if (row.is_equipped) {
+        player.selectedSkill = card;
+      }
+    });
+  }
+
+  /**
+   * Pushes the equip/unequip change to the backend (fire-and-forget).
+   * If the card lacks a dbCardID (e.g. earned offline), looks it up from the
+   * catalog and POSTs to /skill-deck first so the row exists before equipping.
+   */
+  async syncSkillEquip(card, toggleResult) {
+    if (this.registry.get('authMode') !== 'online') return;
+
+    // Recover dbCardID from catalog if missing (covers offline→online case)
+    let cardID = card.dbCardID;
+    if (!cardID) {
+      cardID = getCardIDByName(card.name);
+      if (!cardID) return; // Catalog not loaded — give up
+      card.dbCardID = cardID;
+      // Ensure the row exists on backend before equipping
+      await addSkillCard(cardID);
+    }
+
+    if (toggleResult === 'equipped') {
+      equipSkillCard(cardID);
+    } else if (toggleResult === 'unequipped') {
+      unequipSkillCard();
+    }
   }
 }

@@ -18,6 +18,7 @@ import runRoutes     from './routes/run.js';
 import combatRoutes  from './routes/combat.js';
 import catalogRoutes from './routes/catalog.js';
 import statsRoutes   from './routes/stats.js';
+import skillDeckRoutes from './routes/skillDeck.js';
 
 // Load .env relative to this file (so `node server/index.js` works from any cwd)
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +43,7 @@ app.use('/api', runRoutes);
 app.use('/api', combatRoutes);
 app.use('/api', catalogRoutes);
 app.use('/api', statsRoutes);
+app.use('/api', skillDeckRoutes);
 
 // --- 404 handler ---
 app.use((req, res) => {

@@ -305,6 +305,125 @@ test('GET /leaderboard — returns top players list', async () => {
 });
 
 // ------------------------------------------------------------
+// SKILL DECK
+// ------------------------------------------------------------
+test('SETUP — fetch skill cardIDs from catalog', async () => {
+  const res = await http('GET', '/cards?type=skill');
+  assert.equal(res.status, 200);
+  assert.ok(res.data.length >= 2, 'need at least 2 skill cards for equip-switch test');
+  state.skillCardA = res.data[0].cardID;
+  state.skillCardB = res.data[1].cardID;
+  // Also grab any attack card to test non-skill rejection
+  const atk = await http('GET', '/cards?type=attack');
+  state.attackCardID = atk.data[0].cardID;
+});
+
+test('GET /skill-deck — requires auth', async () => {
+  const res = await http('GET', '/skill-deck');
+  assert.equal(res.status, 401);
+});
+
+test('GET /skill-deck — empty for new player', async () => {
+  const res = await http('GET', '/skill-deck', null, state.token);
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.data, []);
+});
+
+test('POST /skill-deck — requires auth', async () => {
+  const res = await http('POST', '/skill-deck', { cardID: state.skillCardA });
+  assert.equal(res.status, 401);
+});
+
+test('POST /skill-deck — rejects missing cardID', async () => {
+  const res = await http('POST', '/skill-deck', {}, state.token);
+  assert.equal(res.status, 400);
+});
+
+test('POST /skill-deck — rejects non-existent cardID', async () => {
+  const res = await http('POST', '/skill-deck', { cardID: 999999 }, state.token);
+  assert.equal(res.status, 404);
+});
+
+test('POST /skill-deck — rejects non-skill cardID', async () => {
+  const res = await http('POST', '/skill-deck', { cardID: state.attackCardID }, state.token);
+  assert.equal(res.status, 400);
+  assert.ok(/not a skill/i.test(res.data.error));
+});
+
+test('POST /skill-deck — unlocks skill card', async () => {
+  const res = await http('POST', '/skill-deck', { cardID: state.skillCardA }, state.token);
+  assert.equal(res.status, 201);
+  assert.ok(res.data.skillDeckID);
+  assert.equal(res.data.cardID, state.skillCardA);
+  assert.equal(!!res.data.is_equipped, false);
+  state.skillDeckIDA = res.data.skillDeckID;
+});
+
+test('POST /skill-deck — idempotent on duplicate', async () => {
+  const res = await http('POST', '/skill-deck', { cardID: state.skillCardA }, state.token);
+  assert.ok(res.status === 201 || res.status === 200);
+  // Same row returned
+  assert.equal(res.data.skillDeckID, state.skillDeckIDA);
+});
+
+test('GET /skill-deck — returns owned skill cards with Card join', async () => {
+  const res = await http('GET', '/skill-deck', null, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.length, 1);
+  assert.equal(res.data[0].cardID, state.skillCardA);
+  assert.ok(res.data[0].name);          // joined from Card
+  assert.ok(res.data[0].description);   // joined from Card
+});
+
+test('PUT /skill-deck/equip — requires auth', async () => {
+  const res = await http('PUT', '/skill-deck/equip', { cardID: state.skillCardA });
+  assert.equal(res.status, 401);
+});
+
+test('PUT /skill-deck/equip — rejects non-owned cardID', async () => {
+  const res = await http('PUT', '/skill-deck/equip', { cardID: state.skillCardB }, state.token);
+  assert.equal(res.status, 404);
+});
+
+test('PUT /skill-deck/equip — equips owned skill', async () => {
+  const res = await http('PUT', '/skill-deck/equip', { cardID: state.skillCardA }, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.equipped, state.skillCardA);
+
+  // Verify via GET
+  const check = await http('GET', '/skill-deck', null, state.token);
+  const row = check.data.find((r) => r.cardID === state.skillCardA);
+  assert.ok(row);
+  assert.equal(!!row.is_equipped, true);
+});
+
+test('PUT /skill-deck/equip — switching unequips the previous one', async () => {
+  // Unlock the second skill card
+  await http('POST', '/skill-deck', { cardID: state.skillCardB }, state.token);
+  // Equip it
+  const res = await http('PUT', '/skill-deck/equip', { cardID: state.skillCardB }, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.equipped, state.skillCardB);
+
+  // The previous one (A) must now be unequipped
+  const check = await http('GET', '/skill-deck', null, state.token);
+  const a = check.data.find((r) => r.cardID === state.skillCardA);
+  const b = check.data.find((r) => r.cardID === state.skillCardB);
+  assert.equal(!!a.is_equipped, false);
+  assert.equal(!!b.is_equipped, true);
+});
+
+test('DELETE /skill-deck/equip — unequips all', async () => {
+  const res = await http('DELETE', '/skill-deck/equip', null, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.equipped, null);
+
+  // Verify no cards are equipped
+  const check = await http('GET', '/skill-deck', null, state.token);
+  check.data.forEach((r) => assert.equal(!!r.is_equipped, false));
+});
+
+// ------------------------------------------------------------
 // FINAL — finish run as win, verify stats update
 // ------------------------------------------------------------
 test('PUT /run/:id — marks run as won + sets duration', async () => {
