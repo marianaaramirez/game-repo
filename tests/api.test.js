@@ -444,6 +444,26 @@ test('GET /stats — reflects win after run completion', async () => {
   assert.equal(res.data.highestWorldCleared, 1);
 });
 
+// ------------------------------------------------------------
+// PLAYER PROFILE
+// ------------------------------------------------------------
+test('GET /player/me/profile — requires auth', async () => {
+  const res = await http('GET', '/player/me/profile');
+  assert.equal(res.status, 401);
+});
+
+test('GET /player/me/profile — returns lastSkin + clearedLevels', async () => {
+  const res = await http('GET', '/player/me/profile', null, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.playerID, state.playerID);
+  assert.equal(res.data.username, state.username);
+  // We created the run with skin_selected=0 earlier
+  assert.equal(res.data.lastSkin, 0);
+  // And marked it as won (world 1)
+  assert.ok(Array.isArray(res.data.clearedLevels));
+  assert.ok(res.data.clearedLevels.includes(1));
+});
+
 after(() => {
   console.log('\n[cleanup] test user remains in DB:', state.username);
   console.log('          (drop manually if needed: DELETE FROM Player WHERE username=?)');

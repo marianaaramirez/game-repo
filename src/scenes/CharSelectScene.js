@@ -39,17 +39,30 @@ export default class CharSelectScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setOrigin(0.5);
 
+    // Persistent skin choice from the player's profile (or 0 default)
+    const lastSkin = this.registry.get('selectedSkin');
+
     // Render each skin as a simple pixel-art-style figure (rectangle body + circle head)
     SKINS.forEach((skin, i) => {
       const x = 150 + i * 250; // Evenly spaced across the screen
       const y = 280;
+      const isLast      = (i === lastSkin);
+      const defaultBorder = isLast ? 0xffcc00 : 0xffffff;
 
       // Body rectangle
       const body = this.add.rectangle(x, y, 80, 100, skin.color, 0.9)
-        .setStrokeStyle(3, 0xffffff);
+        .setStrokeStyle(3, defaultBorder);
       // Head circle, positioned above the body
       const head = this.add.circle(x, y - 70, 30, skin.color)
-        .setStrokeStyle(3, 0xffffff);
+        .setStrokeStyle(3, defaultBorder);
+
+      // "LAST USED" tag on the persisted choice
+      if (isLast) {
+        this.add.text(x, y - 130, 'LAST USED', {
+          fontSize: '10px', fontFamily: 'Arial Black', color: '#1a1a2e',
+          backgroundColor: '#ffcc00', padding: { x: 5, y: 2 },
+        }).setOrigin(0.5);
+      }
       // Eyes (two small white circles)
       this.add.circle(x - 10, y - 75, 4, 0xffffff);
       this.add.circle(x + 10, y - 75, 4, 0xffffff);
@@ -73,10 +86,10 @@ export default class CharSelectScene extends Phaser.Scene {
         head.setStrokeStyle(3, 0xffcc00);
       });
 
-      // Un-hover: restore white outline
+      // Un-hover: restore default outline (gold if persisted, white otherwise)
       hitArea.on('pointerout', () => {
-        body.setStrokeStyle(3, 0xffffff);
-        head.setStrokeStyle(3, 0xffffff);
+        body.setStrokeStyle(3, defaultBorder);
+        head.setStrokeStyle(3, defaultBorder);
       });
       // Click: save selection and advance to instructions
       hitArea.on('pointerdown', () => {

@@ -11,7 +11,7 @@
  */
 
 import Phaser from 'phaser';
-import { login, register, setToken, getToken, clearToken, getMe, bootstrapCatalog } from '../api.js';
+import { login, register, setToken, getToken, clearToken, getMe, bootstrapCatalog, getProfile } from '../api.js';
 
 const MIN_PASSWORD_LEN = 6;
 const INPUT_W          = 320;
@@ -42,11 +42,12 @@ export default class LoginScene extends Phaser.Scene {
     if (getToken()) {
       const me = await getMe();
       if (me.ok) {
-        this.registry.set('playerID',  me.data.playerID);
-        this.registry.set('username',  me.data.username);
-        this.registry.set('authMode',  'online');
-        await bootstrapCatalog();
-        this.scene.start('HomeScene');
+        // Reuse the shared post-auth flow so catalog + profile load consistently
+        await this.completeAuth({
+          token:    getToken(),
+          playerID: me.data.playerID,
+          username: me.data.username,
+        });
         return;
       }
       // Token invalid/expired — purge it so we don't re-try on every refresh
@@ -216,6 +217,31 @@ export default class LoginScene extends Phaser.Scene {
     else                       this.handleRegister();
   }
 
+  /**
+   * Shared post-auth setup: stores credentials, fetches catalog + profile,
+   * populates registry with persistent player state, then navigates to HomeScene.
+   */
+  async completeAuth(authData) {
+    setToken(authData.token);
+    this.registry.set('playerID', authData.playerID);
+    this.registry.set('username', authData.username);
+    this.registry.set('authMode', 'online');
+
+    // Load catalog and profile in parallel
+    const [, profileRes] = await Promise.all([
+      bootstrapCatalog(),
+      getProfile(),
+    ]);
+
+    // Restore persistent player state from profile
+    if (profileRes.ok) {
+      this.registry.set('selectedSkin',  profileRes.data.lastSkin || 0);
+      this.registry.set('clearedLevels', profileRes.data.clearedLevels || []);
+    }
+
+    this.scene.start('HomeScene');
+  }
+
   async handleLogin() {
     if (!this.username || !this.password) {
       this.statusText.setColor('#ff6666').setText('Enter username and password');
@@ -227,12 +253,7 @@ export default class LoginScene extends Phaser.Scene {
       this.statusText.setColor('#ff6666').setText(res.error || 'Login failed');
       return;
     }
-    setToken(res.data.token);
-    this.registry.set('playerID',  res.data.playerID);
-    this.registry.set('username',  res.data.username);
-    this.registry.set('authMode',  'online');
-    await bootstrapCatalog();
-    this.scene.start('HomeScene');
+    await this.completeAuth(res.data);
   }
 
   async handleRegister() {
@@ -254,12 +275,7 @@ export default class LoginScene extends Phaser.Scene {
       this.statusText.setColor('#ff6666').setText(res.error || 'Register failed');
       return;
     }
-    setToken(res.data.token);
-    this.registry.set('playerID',  res.data.playerID);
-    this.registry.set('username',  res.data.username);
-    this.registry.set('authMode',  'online');
-    await bootstrapCatalog();
-    this.scene.start('HomeScene');
+    await this.completeAuth(res.data);
   }
 
   skipAuth() {

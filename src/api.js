@@ -75,6 +75,9 @@ export const addSkillCard     = (cardID)  => request('POST',   '/skill-deck', { 
 export const equipSkillCard   = (cardID)  => request('PUT',    '/skill-deck/equip', { cardID });
 export const unequipSkillCard = ()        => request('DELETE', '/skill-deck/equip');
 
+// --- Player profile (derived data) ---
+export const getProfile = () => request('GET', '/player/me/profile');
+
 /**
  * Fetch all enemies + all cards and build name -> ID lookup maps.
  * Cached in window.__catalog for fast lookup during combat.
