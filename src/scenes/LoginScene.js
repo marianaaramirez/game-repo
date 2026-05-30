@@ -1,11 +1,8 @@
 /**
  * LoginScene.js
  * Authentication screen with two modes: LOGIN and REGISTER.
- * Player can switch modes via the tabs at the top.
- * Successful auth stores the JWT in localStorage and bootstraps the catalog cache.
- *
- * Inputs use HTML <input> elements overlaid on the Phaser canvas.
- * Requires `dom: { createContainer: true }` in the Phaser game config.
+ * Uses Phaser-native input boxes (rectangle + text + keyboard capture).
+ * Avoids DOM elements that misalign with FIT scale mode.
  *
  * Navigation:
  *   Login OK     → HomeScene
@@ -14,14 +11,28 @@
  */
 
 import Phaser from 'phaser';
-import { login, register, setToken, getToken, getMe, bootstrapCatalog } from '../api.js';
+import { login, register, setToken, getToken, clearToken, getMe, bootstrapCatalog } from '../api.js';
 
 const MIN_PASSWORD_LEN = 6;
+const INPUT_W          = 320;
+const INPUT_H          = 38;
 
 export default class LoginScene extends Phaser.Scene {
   constructor() {
     super('LoginScene');
-    this.mode = 'login'; // 'login' | 'register'
+  }
+
+  /**
+   * init() runs on every scene start (including restart).
+   * Resets all form state so logout / re-entry never leaks credentials.
+   * `data.mode` is passed when switching tabs via scene.restart.
+   */
+  init(data) {
+    this.mode         = (data && data.mode) || 'login';
+    this.username     = '';
+    this.password     = '';
+    this.focusedField = 'username';
+    this.cursorVisible = true;
   }
 
   async create() {
@@ -38,52 +49,46 @@ export default class LoginScene extends Phaser.Scene {
         this.scene.start('HomeScene');
         return;
       }
+      // Token invalid/expired — purge it so we don't re-try on every refresh
+      clearToken();
     }
 
     this.drawUI();
+    this.setupKeyboard();
   }
 
   drawUI() {
     // Title
     this.add.text(400, 60, 'MATH SMASH', {
-      fontSize: '36px',
-      fontFamily: 'Arial Black, Arial',
-      color: '#ffcc00',
-      stroke: '#000',
-      strokeThickness: 4,
+      fontSize: '36px', fontFamily: 'Arial Black, Arial',
+      color: '#ffcc00', stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5);
 
-    // Mode tabs
-    this.loginTabBg    = this.add.rectangle(310, 130, 160, 38, this.mode === 'login'    ? 0x44aa44 : 0x333344, 0.9)
-      .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0xffffff);
-    this.add.text(310, 130, 'LOG IN', {
-      fontSize: '15px', fontFamily: 'Arial Black', color: '#ffffff',
-    }).setOrigin(0.5);
-    this.loginTabBg.on('pointerdown', () => this.switchMode('login'));
+    // --- Mode tabs ---
+    const loginActive = this.mode === 'login';
+    this.makeTab(310, 130, 'LOG IN',         loginActive  ? 0x44aa44 : 0x333344, () => this.switchMode('login'));
+    this.makeTab(490, 130, 'CREATE ACCOUNT', !loginActive ? 0x4466aa : 0x333344, () => this.switchMode('register'));
 
-    this.registerTabBg = this.add.rectangle(490, 130, 160, 38, this.mode === 'register' ? 0x4466aa : 0x333344, 0.9)
-      .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0xffffff);
-    this.add.text(490, 130, 'CREATE ACCOUNT', {
-      fontSize: '15px', fontFamily: 'Arial Black', color: '#ffffff',
-    }).setOrigin(0.5);
-    this.registerTabBg.on('pointerdown', () => this.switchMode('register'));
-
-    // Username field
+    // --- Username field ---
     this.add.text(400, 185, 'Username', {
       fontSize: '14px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
-    this.usernameInput = this.add.dom(400, 220, this.makeInput('text'));
+    this.usernameBg = this.makeInputBox(400, 220, () => this.setFocus('username'));
+    this.usernameText = this.add.text(400 - INPUT_W / 2 + 10, 220, '', {
+      fontSize: '17px', fontFamily: 'Arial', color: '#ffffff',
+    }).setOrigin(0, 0.5);
 
-    // Password field
+    // --- Password field ---
     this.add.text(400, 265, 'Password', {
       fontSize: '14px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
-    this.passwordInput = this.add.dom(400, 300, this.makeInput('password'));
+    this.passwordBg = this.makeInputBox(400, 300, () => this.setFocus('password'));
+    this.passwordText = this.add.text(400 - INPUT_W / 2 + 10, 300, '', {
+      fontSize: '17px', fontFamily: 'Arial', color: '#ffffff',
+    }).setOrigin(0, 0.5);
 
-    // Password hint (only in register mode)
-    this.hintText = this.add.text(400, 332, this.mode === 'register' ? `Minimum ${MIN_PASSWORD_LEN} characters` : '', {
+    // Hint
+    this.add.text(400, 332, this.mode === 'register' ? `Minimum ${MIN_PASSWORD_LEN} characters` : '', {
       fontSize: '11px', fontFamily: 'Arial', color: '#888899',
     }).setOrigin(0.5);
 
@@ -92,16 +97,18 @@ export default class LoginScene extends Phaser.Scene {
       fontSize: '13px', fontFamily: 'Arial', color: '#ff6666',
     }).setOrigin(0.5);
 
-    // Action button (label depends on mode)
-    this.actionBg = this.add.rectangle(400, 410, 240, 46, this.mode === 'login' ? 0x44aa44 : 0x4466aa, 0.95)
+    // Action button
+    const actionColor = this.mode === 'login' ? 0x44aa44 : 0x4466aa;
+    const actionLabel = this.mode === 'login' ? 'LOGIN'   : 'REGISTER';
+    const actionBg = this.add.rectangle(400, 410, 240, 46, actionColor, 0.95)
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0xffffff);
-    this.actionLabel = this.add.text(400, 410, this.mode === 'login' ? 'LOGIN' : 'REGISTER', {
+    this.add.text(400, 410, actionLabel, {
       fontSize: '17px', fontFamily: 'Arial Black', color: '#ffffff',
     }).setOrigin(0.5);
-    this.actionBg.on('pointerdown', () => this.handleAction());
+    actionBg.on('pointerdown', () => this.handleAction());
 
-    // Skip (offline mode)
+    // Skip
     const skipBg = this.add.rectangle(400, 475, 200, 36, 0x555566, 0.8)
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0x888899);
@@ -109,34 +116,99 @@ export default class LoginScene extends Phaser.Scene {
       fontSize: '13px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
     skipBg.on('pointerdown', () => this.skipAuth());
+
+    // Footer instruction
+    this.add.text(400, 540, 'Click a field to focus  -  Tab to switch  -  Enter to submit', {
+      fontSize: '11px', fontFamily: 'Arial', color: '#666677',
+    }).setOrigin(0.5);
+
+    this.refreshFieldText();
+    this.refreshFocusBorders();
+  }
+
+  makeTab(x, y, label, color, onClick) {
+    const bg = this.add.rectangle(x, y, 160, 38, color, 0.9)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0xffffff);
+    this.add.text(x, y, label, {
+      fontSize: '15px', fontFamily: 'Arial Black', color: '#ffffff',
+    }).setOrigin(0.5);
+    bg.on('pointerdown', onClick);
+    return bg;
+  }
+
+  makeInputBox(x, y, onClick) {
+    const bg = this.add.rectangle(x, y, INPUT_W, INPUT_H, 0x222244, 1)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0x4466aa);
+    bg.on('pointerdown', onClick);
+    return bg;
+  }
+
+  setFocus(field) {
+    this.focusedField = field;
+    this.refreshFocusBorders();
+  }
+
+  refreshFocusBorders() {
+    const focusColor = 0xffcc00;
+    const idleColor  = 0x4466aa;
+    this.usernameBg.setStrokeStyle(2, this.focusedField === 'username' ? focusColor : idleColor);
+    this.passwordBg.setStrokeStyle(2, this.focusedField === 'password' ? focusColor : idleColor);
+  }
+
+  refreshFieldText() {
+    const showCursor = this.cursorVisible !== false;
+    const masked = '*'.repeat(this.password.length);
+    const uCursor = (this.focusedField === 'username' && showCursor) ? '|' : '';
+    const pCursor = (this.focusedField === 'password' && showCursor) ? '|' : '';
+    this.usernameText.setText(this.username + uCursor);
+    this.passwordText.setText(masked + pCursor);
+  }
+
+  setupKeyboard() {
+    this.input.keyboard.on('keydown', (event) => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        this.setFocus(this.focusedField === 'username' ? 'password' : 'username');
+        this.refreshFieldText();
+        return;
+      }
+      if (event.key === 'Enter') {
+        this.handleAction();
+        return;
+      }
+      if (event.key === 'Backspace') {
+        this[this.focusedField] = this[this.focusedField].slice(0, -1);
+        this.refreshFieldText();
+        return;
+      }
+      // Accept printable characters only (length 1, not a control key)
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+        const max = this.focusedField === 'username' ? 50 : 64;
+        if (this[this.focusedField].length < max) {
+          this[this.focusedField] += event.key;
+          this.refreshFieldText();
+        }
+      }
+    });
+
+    // Cursor blink — toggles cursorVisible every 500ms, delegates to refreshFieldText
+    this.cursorVisible = true;
+    this.time.addEvent({
+      delay: 500,
+      loop:  true,
+      callback: () => {
+        this.cursorVisible = !this.cursorVisible;
+        this.refreshFieldText();
+      },
+    });
   }
 
   switchMode(newMode) {
     if (this.mode === newMode) return;
-    this.mode = newMode;
-    // Easiest way to re-render the toggle state — restart the scene
-    this.scene.restart();
-  }
-
-  makeInput(type) {
-    const input = document.createElement('input');
-    input.type = type;
-    input.style.width            = '260px';
-    input.style.height           = '34px';
-    input.style.padding          = '0 10px';
-    input.style.fontSize         = '16px';
-    input.style.border           = '2px solid #4466aa';
-    input.style.borderRadius     = '4px';
-    input.style.backgroundColor  = '#222244';
-    input.style.color            = '#ffffff';
-    input.style.outline          = 'none';
-    return input;
-  }
-
-  getCredentials() {
-    const username = this.usernameInput.node.value.trim();
-    const password = this.passwordInput.node.value;
-    return { username, password };
+    // Pass mode via restart data so init() picks it up; resets username/password too
+    this.scene.restart({ mode: newMode });
   }
 
   handleAction() {
@@ -145,13 +217,12 @@ export default class LoginScene extends Phaser.Scene {
   }
 
   async handleLogin() {
-    const { username, password } = this.getCredentials();
-    if (!username || !password) {
+    if (!this.username || !this.password) {
       this.statusText.setColor('#ff6666').setText('Enter username and password');
       return;
     }
     this.statusText.setColor('#aaaaaa').setText('Logging in...');
-    const res = await login(username, password);
+    const res = await login(this.username, this.password);
     if (!res.ok) {
       this.statusText.setColor('#ff6666').setText(res.error || 'Login failed');
       return;
@@ -165,21 +236,20 @@ export default class LoginScene extends Phaser.Scene {
   }
 
   async handleRegister() {
-    const { username, password } = this.getCredentials();
-    if (!username || !password) {
+    if (!this.username || !this.password) {
       this.statusText.setColor('#ff6666').setText('Enter username and password');
       return;
     }
-    if (username.length < 3) {
+    if (this.username.length < 3) {
       this.statusText.setColor('#ff6666').setText('Username must be at least 3 characters');
       return;
     }
-    if (password.length < MIN_PASSWORD_LEN) {
+    if (this.password.length < MIN_PASSWORD_LEN) {
       this.statusText.setColor('#ff6666').setText(`Password must be at least ${MIN_PASSWORD_LEN} characters`);
       return;
     }
     this.statusText.setColor('#aaaaaa').setText('Creating account...');
-    const res = await register(username, password);
+    const res = await register(this.username, this.password);
     if (!res.ok) {
       this.statusText.setColor('#ff6666').setText(res.error || 'Register failed');
       return;

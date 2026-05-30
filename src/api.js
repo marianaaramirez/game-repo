@@ -65,6 +65,10 @@ export const getRun    = (runID)                          => request('GET',  `/r
 export const postProblem = (data) => request('POST', '/problem', data);
 export const postCombat  = (data) => request('POST', '/combat',  data);
 
+// --- Stats ---
+export const getStats       = ()  => request('GET', '/stats');
+export const getLeaderboard = ()  => request('GET', '/leaderboard');
+
 /**
  * Fetch all enemies + all cards and build name -> ID lookup maps.
  * Cached in window.__catalog for fast lookup during combat.

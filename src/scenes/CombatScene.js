@@ -383,12 +383,14 @@ export default class CombatScene extends Phaser.Scene {
 
     this.timerActive = false;
 
-    // Clamp elapsed to 0 so negative timerReduction (freeze time) doesn't go below 0
-    const elapsed = Date.now() - this.timerStartTime + this.combatContext.timerReduction;
+    // realElapsed = actual time the player took (used for analytics logging)
+    // adjustedElapsed = realElapsed minus FreezeTime bonus (used for timer multiplier)
+    const realElapsed     = Date.now() - this.timerStartTime;
+    const adjustedElapsed = realElapsed + this.combatContext.timerReduction;
 
     const result = CombatSystem.evaluatePlayerAction(
       this.selectedCard, this.currentProblem, this.inputText,
-      Math.max(0, elapsed), this.timerDuration
+      Math.max(0, adjustedElapsed), this.timerDuration
     );
 
     // Apply double power skill bonus before any other modifiers
@@ -402,8 +404,8 @@ export default class CombatScene extends Phaser.Scene {
     if (this.selectedCard.special !== 'pierce') {
       effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
     }
-    // Backend tracking — log this math problem attempt (fire-and-forget)
-    this.logProblem(result.success, elapsed);
+    // Backend tracking — log REAL elapsed (not freeze-adjusted) for honest analytics
+    this.logProblem(result.success, Math.max(0, realElapsed));
 
     if (result.success) {
       // Rogue passive: every 2nd successful answer doubles the effect

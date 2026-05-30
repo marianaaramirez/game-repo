@@ -16,6 +16,7 @@ import DeckBuildScene from './scenes/DeckBuildScene.js';
 import MapScene from './scenes/MapScene.js';
 import CombatScene from './scenes/CombatScene.js';
 import RewardScene from './scenes/RewardScene.js';
+import StatsScene from './scenes/StatsScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -40,6 +41,7 @@ const config = {
     MapScene,
     CombatScene,
     RewardScene,
+    StatsScene,
   ],
 };
 

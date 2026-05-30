@@ -60,9 +60,12 @@ export default class HomeScene extends Phaser.Scene {
       }).setOrigin(1, 0);
     }
 
-    // Main navigation button
-    this.createButton(400, 360, 'PLAY', () => {
+    // Main navigation buttons
+    this.createButton(400, 340, 'PLAY', () => {
       this.scene.start('CharSelectScene');
+    });
+    this.createButton(400, 410, 'STATS', () => {
+      this.scene.start('StatsScene');
     });
 
     // Idle floating animation on the title — loops forever with sine easing
@@ -81,12 +84,17 @@ export default class HomeScene extends Phaser.Scene {
    */
   handleLogout() {
     clearToken();
-    this.registry.set('playerID', null);
-    this.registry.set('username', null);
-    this.registry.set('authMode', null);
-    this.registry.set('runID',    null);
-    this.registry.set('player',   null);
-    this.registry.set('currentMap', null);
+    // Wipe ALL session-scoped registry state so the next user starts clean
+    this.registry.set('playerID',           null);
+    this.registry.set('username',           null);
+    this.registry.set('authMode',           null);
+    this.registry.set('runID',              null);
+    this.registry.set('player',             null);
+    this.registry.set('currentMap',         null);
+    this.registry.set('runStartTime',       null);
+    this.registry.set('runEnemiesDefeated', null);
+    this.registry.set('clearedLevels',      []);
+    this.registry.set('selectedSkin',       null);
     this.scene.start('LoginScene');
   }
 
