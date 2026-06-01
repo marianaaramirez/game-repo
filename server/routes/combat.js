@@ -14,22 +14,29 @@ const router = express.Router();
 
 /**
  * Helper — verify the run exists and belongs to the current player.
- * Returns true on success, sends a 403/404 and returns false otherwise.
+ * Returns true on success, sends a 403/404/500 and returns false otherwise.
+ * Catches DB errors so callers don't need their own try/catch around this.
  */
 async function assertRunOwned(runID, playerID, res) {
-  const [rows] = await db.query(
-    'SELECT playerID FROM Run WHERE runID = ?',
-    [runID]
-  );
-  if (rows.length === 0) {
-    res.status(404).json({ error: 'run not found' });
+  try {
+    const [rows] = await db.query(
+      'SELECT playerID FROM Run WHERE runID = ?',
+      [runID]
+    );
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'run not found' });
+      return false;
+    }
+    if (rows[0].playerID !== playerID) {
+      res.status(403).json({ error: 'run does not belong to this player' });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[assertRunOwned] error:', err);
+    res.status(500).json({ error: 'internal server error' });
     return false;
   }
-  if (rows[0].playerID !== playerID) {
-    res.status(403).json({ error: 'run does not belong to this player' });
-    return false;
-  }
-  return true;
 }
 
 /**
@@ -107,6 +114,16 @@ router.post('/combat', auth, async (req, res) => {
   }
   if (!['win', 'lose', 'ongoing'].includes(combat_result)) {
     return res.status(400).json({ error: 'invalid combat_result' });
+  }
+  if (cards_used && !Array.isArray(cards_used)) {
+    return res.status(400).json({ error: 'cards_used must be an array' });
+  }
+  if (Array.isArray(cards_used)) {
+    for (const c of cards_used) {
+      if (!c || typeof c.cardID !== 'number') {
+        return res.status(400).json({ error: 'each cards_used entry needs a numeric cardID' });
+      }
+    }
   }
 
   if (!(await assertRunOwned(runID, req.player.playerID, res))) return;

@@ -295,6 +295,10 @@ export default class CombatScene extends Phaser.Scene {
     // Skill cards: apply effect immediately, then pass turn to the enemy
     if (card.type === CARD_TYPES.SKILL) {
       this.trackCardUsed(card);
+      // Lock state + cards so user can't fire another action during the 1.5s delay
+      this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
+      this.cardObjects.forEach((obj) => obj.disableInteractive());
+
       const result = card.apply(this.player, this.enemy, 0);
       this.messageText.setText(result.message);
 
@@ -319,6 +323,10 @@ export default class CombatScene extends Phaser.Scene {
     // ClearMind: skip math problem entirely, activate card at full base power
     if (this.combatContext.clearMind) {
       this.combatContext.clearMind = false;
+      // Lock state + cards so user can't fire another action during the 1.2s delay
+      this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
+      this.cardObjects.forEach((obj) => obj.disableInteractive());
+
       let effectValue = card.baseValue;
       // Rogue passive: every 2nd successful action doubles effect
       if (this.player.rogueDouble) {
