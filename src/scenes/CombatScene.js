@@ -29,6 +29,8 @@ import MathSystem from '../systems/MathSystem.js';
 import TimerSystem from '../systems/TimerSystem.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
+import { postProblem, postCombat, updateRun, wipeDeck, getEnemyIDByName, getCardIDByName } from '../api.js';
+import { drawBackButton } from '../ui/uiHelpers.js';
 
 export default class CombatScene extends Phaser.Scene {
   constructor() {
@@ -92,9 +94,24 @@ export default class CombatScene extends Phaser.Scene {
       playerDeck: this.player.getActiveDeck(),
     };
 
+    // --- Backend tracking (separate from combatContext so it isn't reset by enemy turn) ---
+    this.cardsUsedThisCombat = [];     // [{ cardID, turn_number }]
+    this.turnCount           = 1;
+    this.totalDamageDealt    = 0;
+    this.lastProblemID       = null;
+
     this.drawBattleUI();
     this.drawCards();
     this.setupKeyboardInput();
+
+    // Forfeit button — abandons combat, marks run as lose, wipes deck.
+    // Positioned bottom-right where no other combat UI lives.
+    this.forfeitButton = drawBackButton(this, 'LevelSelectScene', {
+      x: 740, y: 580,
+      label: 'FORFEIT',
+      confirmMessage: 'Forfeit combat? Your run ends and your collection is wiped.',
+      onBeforeNavigate: () => this.forfeitCombat(),
+    });
 
     // Trap challenge skips card selection and jumps straight to a math problem
     if (this.trapChallenge) {
@@ -277,6 +294,11 @@ export default class CombatScene extends Phaser.Scene {
 
     // Skill cards: apply effect immediately, then pass turn to the enemy
     if (card.type === CARD_TYPES.SKILL) {
+      this.trackCardUsed(card);
+      // Lock state + cards so user can't fire another action during the 1.5s delay
+      this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
+      this.cardObjects.forEach((obj) => obj.disableInteractive());
+
       const result = card.apply(this.player, this.enemy, 0);
       this.messageText.setText(result.message);
 
@@ -301,6 +323,10 @@ export default class CombatScene extends Phaser.Scene {
     // ClearMind: skip math problem entirely, activate card at full base power
     if (this.combatContext.clearMind) {
       this.combatContext.clearMind = false;
+      // Lock state + cards so user can't fire another action during the 1.2s delay
+      this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
+      this.cardObjects.forEach((obj) => obj.disableInteractive());
+
       let effectValue = card.baseValue;
       // Rogue passive: every 2nd successful action doubles effect
       if (this.player.rogueDouble) {
@@ -309,7 +335,10 @@ export default class CombatScene extends Phaser.Scene {
           effectValue *= 2;
         }
       }
+      this.trackCardUsed(card);
+      const hpBefore   = this.enemy.hp;
       const cardResult = card.apply(this.player, this.enemy, effectValue, this.combatContext);
+      this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
       if (card.type === CARD_TYPES.DEFENSE) {
         this.activeDefense = cardResult.defense !== undefined ? cardResult.defense : effectValue;
@@ -372,12 +401,14 @@ export default class CombatScene extends Phaser.Scene {
 
     this.timerActive = false;
 
-    // Clamp elapsed to 0 so negative timerReduction (freeze time) doesn't go below 0
-    const elapsed = Date.now() - this.timerStartTime + this.combatContext.timerReduction;
+    // realElapsed = actual time the player took (used for analytics logging)
+    // adjustedElapsed = realElapsed minus FreezeTime bonus (used for timer multiplier)
+    const realElapsed     = Date.now() - this.timerStartTime;
+    const adjustedElapsed = realElapsed + this.combatContext.timerReduction;
 
     const result = CombatSystem.evaluatePlayerAction(
       this.selectedCard, this.currentProblem, this.inputText,
-      Math.max(0, elapsed), this.timerDuration
+      Math.max(0, adjustedElapsed), this.timerDuration
     );
 
     // Apply double power skill bonus before any other modifiers
@@ -391,6 +422,9 @@ export default class CombatScene extends Phaser.Scene {
     if (this.selectedCard.special !== 'pierce') {
       effectValue = Math.round(effectValue * this.combatContext.cardEffectivenessModifier);
     }
+    // Backend tracking — log REAL elapsed (not freeze-adjusted) for honest analytics
+    this.logProblem(result.success, Math.max(0, realElapsed));
+
     if (result.success) {
       // Rogue passive: every 2nd successful answer doubles the effect
       let rogueMsg = '';
@@ -402,7 +436,10 @@ export default class CombatScene extends Phaser.Scene {
         }
       }
 
+      this.trackCardUsed(this.selectedCard);
+      const hpBefore   = this.enemy.hp;
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue, this.combatContext);
+      this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
       // Store defense value so enemy attack this turn can be reduced
@@ -591,6 +628,9 @@ export default class CombatScene extends Phaser.Scene {
       return;
     }
 
+    // Backend tracking — log this problem as timed out / incorrect
+    this.logProblem(false, this.timerDuration);
+
     // Flip state OUT of MATH_PROBLEM so keyboard input is ignored
     this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
     this.messageText.setText('Time out! No effect.');
@@ -618,6 +658,7 @@ export default class CombatScene extends Phaser.Scene {
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
+    this.turnCount   += 1;
 
     // Regen card — apply HoT tick at the start of each new player turn
     if (this.combatContext.playerRegen > 0) {
@@ -640,12 +681,28 @@ export default class CombatScene extends Phaser.Scene {
    */
   handleWin() {
     this.combatState = CombatSystem.COMBAT_STATE.WIN;
+    this.disableForfeit();
 
     // Mark the current map node as completed so MapScene renders it correctly
     const map = this.registry.get('currentMap');
     if (map) {
       const node = map.nodes[map.currentNode];
       if (node) node.completed = true;
+    }
+
+    // Backend tracking — log combat win + bump run.enemies_defeated.
+    // If this was a boss kill, also mark run as won.
+    this.logCombatResult('win');
+    const newDefeated = (this.registry.get('runEnemiesDefeated') || 0) + 1;
+    this.registry.set('runEnemiesDefeated', newDefeated);
+    const runID = this.registry.get('runID');
+    if (runID) {
+      const fields = { enemies_defeated: newDefeated };
+      if (this.isBoss) {
+        fields.result   = 'win';
+        fields.duration = this.computeRunDuration();
+      }
+      updateRun(runID, fields);
     }
 
     this.messageText.setText('VICTORY!');
@@ -667,6 +724,22 @@ export default class CombatScene extends Phaser.Scene {
    */
   handleLose() {
     this.combatState = CombatSystem.COMBAT_STATE.LOSE;
+    this.disableForfeit();
+
+    // Backend tracking — log combat loss + close out the Run + wipe collection
+    this.logCombatResult('lose');
+    const runID = this.registry.get('runID');
+    if (runID) {
+      updateRun(runID, {
+        result:   'lose',
+        duration: this.computeRunDuration(),
+      });
+    }
+    // Roguelike: wipe attack/defense collection (skill cards stay)
+    if (this.registry.get('authMode') === 'online') {
+      wipeDeck();
+    }
+
     this.messageText.setText('DEFEAT...');
     this.problemText.setText('You have been defeated!').setColor('#ff4444');
 
@@ -734,5 +807,119 @@ export default class CombatScene extends Phaser.Scene {
     this.timerBarFill.setVisible(true);
     this.timerActive    = true;
     this.messageText.setText('Solve the problem to escape the trap!');
+  }
+
+  // ============================================================
+  // Backend tracking helpers
+  // ============================================================
+
+  /**
+   * Records a played card into the per-combat tracking array.
+   * Looks up the DB cardID by name from the cached catalog.
+   */
+  trackCardUsed(card) {
+    const cardID = getCardIDByName(card.name);
+    if (cardID) {
+      this.cardsUsedThisCombat.push({ cardID, turn_number: this.turnCount });
+    }
+  }
+
+  /**
+   * Sends a POST /api/problem with the current problem context.
+   * Fire-and-forget — never blocks combat.
+   */
+  async logProblem(isCorrect, elapsedMs) {
+    if (this.registry.get('authMode') !== 'online') return;
+    const runID = this.registry.get('runID');
+    if (!runID || !this.currentProblem) return;
+
+    const playerAnswer = parseInt(this.inputText, 10);
+    const res = await postProblem({
+      runID,
+      world_level:   this.worldLevel,
+      battle_number: this.battleNumber || 1,
+      difficulty:    `tier_${this.battleNumber || 1}`,
+      op_type:       this.currentProblem.operation,
+      expression:    this.currentProblem.text,
+      answer:        this.currentProblem.answer,
+      player_answer: isNaN(playerAnswer) ? null : playerAnswer,
+      response_time: Math.round(elapsedMs),
+      is_correct:    !!isCorrect,
+    });
+    if (res.ok) {
+      this.lastProblemID = res.data.problemID;
+    }
+  }
+
+  /**
+   * Sends a POST /api/combat at the end of the encounter.
+   * Includes all cards used and the linked last problem.
+   */
+  async logCombatResult(combatResult) {
+    if (this.registry.get('authMode') !== 'online') return;
+    const runID = this.registry.get('runID');
+    if (!runID) return;
+
+    const enemyID = getEnemyIDByName(this.enemy.name);
+    if (!enemyID) return;
+
+    // Derive timer zone from last problem performance — fallback to 'green' on win, 'timeout' on lose
+    const timer_result = combatResult === 'win' ? 'green' : 'timeout';
+
+    await postCombat({
+      runID,
+      enemyID,
+      problemID:     this.lastProblemID,
+      timer_result,
+      damage_dealt:  Math.round(this.totalDamageDealt),
+      combat_result: combatResult,
+      cards_used:    this.cardsUsedThisCombat,
+    });
+  }
+
+  /**
+   * Returns seconds elapsed since the run started (clamped to 0).
+   */
+  computeRunDuration() {
+    const start = this.registry.get('runStartTime');
+    if (!start) return 0;
+    return Math.max(0, Math.round((Date.now() - start) / 1000));
+  }
+
+  /**
+   * Forfeit handler — same effect as a defeat: marks run lose, wipes deck,
+   * keeps skill cards, returns to LevelSelectScene via drawBackButton navigation.
+   * Guards against firing after combat already resolved (win/lose) to avoid
+   * overwriting a victory with a forfeit loss.
+   */
+  forfeitCombat() {
+    if (this.combatState === CombatSystem.COMBAT_STATE.WIN ||
+        this.combatState === CombatSystem.COMBAT_STATE.LOSE) {
+      return;
+    }
+    const player = this.registry.get('player');
+    if (player) player.onDefeat();
+    this.registry.set('currentMap', null);
+    this.combatState = CombatSystem.COMBAT_STATE.LOSE;
+    this.timerActive = false;
+
+    if (this.registry.get('authMode') === 'online') {
+      const runID = this.registry.get('runID');
+      if (runID) {
+        updateRun(runID, { result: 'lose', duration: this.computeRunDuration() });
+      }
+      wipeDeck();
+    }
+  }
+
+  /**
+   * Disables the FORFEIT button so it can't fire after combat resolves.
+   */
+  disableForfeit() {
+    if (this.forfeitButton?.bg) {
+      this.forfeitButton.bg.disableInteractive();
+      this.forfeitButton.bg.setFillStyle(0x333333, 0.5);
+      this.forfeitButton.text.setColor('#666666');
+    }
   }
 }

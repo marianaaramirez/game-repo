@@ -15,6 +15,8 @@
 import Phaser from 'phaser';
 import CardFactory from '../cards/CardFactory.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
+import { addSkillCard, addDeckCard, getCardIDByName } from '../api.js';
+import { drawConnectionBadge } from '../ui/uiHelpers.js';
 
 export default class RewardScene extends Phaser.Scene {
   constructor() {
@@ -30,8 +32,9 @@ export default class RewardScene extends Phaser.Scene {
     this.chestReward = data.chestReward || false;
   }
 
-  create() {
+  async create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawConnectionBadge(this);
 
     const player = this.registry.get('player');
 
@@ -50,16 +53,35 @@ export default class RewardScene extends Phaser.Scene {
     if (this.isBoss) {
       // Boss reward: a skill card (kept in the separate skill slot)
       newCard = CardFactory.createBossReward();
-      player.addSkillCard(newCard);
+      const added = player.addSkillCard(newCard);
 
-      this.add.text(400, 120, 'New Skill Card Unlocked!', {
-        fontSize: '20px', fontFamily: 'Arial', color: '#ffaa00',
-      }).setOrigin(0.5);
+      if (added) {
+        // Persist to backend (online mode only) — fire-and-forget
+        if (this.registry.get('authMode') === 'online') {
+          const cardID = getCardIDByName(newCard.name);
+          if (cardID) {
+            newCard.dbCardID = cardID; // tag for future equip syncs
+            addSkillCard(cardID);
+          }
+        }
+        this.add.text(400, 120, 'New Skill Card Unlocked!', {
+          fontSize: '20px', fontFamily: 'Arial', color: '#ffaa00',
+        }).setOrigin(0.5);
+      } else {
+        // Already owned — heal instead so the boss reward isn't worthless
+        newCard = null;
+        const healAmount = Math.round(player.maxHp * 0.5);
+        player.heal(healAmount);
+        this.add.text(400, 120, `Skill already owned. Healed ${healAmount} HP instead!`, {
+          fontSize: '18px', fontFamily: 'Arial', color: '#44ff44',
+        }).setOrigin(0.5);
+      }
     } else if (this.chestReward) {
       // Chest: either a card (60%) or an HP heal (40%)
       if (Math.random() < 0.6) {
         newCard = CardFactory.createRewardCard(this.worldLevel);
         player.addCard(newCard);
+        await this.persistRewardCard(newCard, player);
       } else {
         const healAmount = Math.round(player.maxHp * 0.25);
         player.heal(healAmount);
@@ -72,6 +94,7 @@ export default class RewardScene extends Phaser.Scene {
       // Normal combat win: an attack/defense card
       newCard = CardFactory.createRewardCard(this.worldLevel);
       player.addCard(newCard);
+      this.persistRewardCard(newCard, player);
     }
 
     // --- Render the awarded card ---
@@ -141,5 +164,21 @@ export default class RewardScene extends Phaser.Scene {
         this.scene.start('DeckBuildScene', { worldLevel: this.worldLevel });
       }
     });
+  }
+
+  /**
+   * Persists a newly-awarded attack/defense card to the backend collection.
+   * Tags the local card with dbDeckCardID so DeckBuildScene can sync toggles.
+   * Fire-and-forget; silent failure if offline or catalog missing.
+   */
+  async persistRewardCard(card, player) {
+    if (this.registry.get('authMode') !== 'online') return;
+    const cardID = getCardIDByName(card.name);
+    if (!cardID) return;
+    const isActive = player.deck.includes(card);
+    const res = await addDeckCard(cardID, isActive);
+    if (res.ok) {
+      card.dbDeckCardID = res.data.deckCardID;
+    }
   }
 }

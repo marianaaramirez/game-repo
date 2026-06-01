@@ -79,14 +79,21 @@ export default class Player extends BaseEntity {
   /**
    * Adds a skill card (obtained by defeating a boss).
    * Skill cards persist through defeats and use a separate slot.
+   * Duplicates (by name) are silently ignored so re-winning the same boss
+   * doesn't create UI duplicates in DeckBuildScene.
    * @param {BaseCard} card
+   * @returns {boolean} true if added, false if it was a duplicate
    */
   addSkillCard(card) {
+    if (this.skillCards.some((c) => c.name === card.name)) {
+      return false;
+    }
     this.skillCards.push(card);
     // Auto-equip the first skill card obtained so it's usable right away
     if (!this.selectedSkill) {
       this.selectedSkill = card;
     }
+    return true;
   }
 
   /**

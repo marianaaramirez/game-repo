@@ -19,6 +19,8 @@
  */
 
 import Phaser from 'phaser';
+import { createRun } from '../api.js';
+import { drawConnectionBadge, showLoading, showToast } from '../ui/uiHelpers.js';
 
 // Definition of each selectable level
 const LEVELS = [
@@ -34,6 +36,7 @@ export default class LevelSelectScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawConnectionBadge(this);
 
     // Title
     this.add.text(400, 50, 'SELECT A LEVEL', {
@@ -80,9 +83,26 @@ export default class LevelSelectScene extends Phaser.Scene {
       bg.on('pointerover', () => bg.setStrokeStyle(4, 0xffcc00));
       bg.on('pointerout',  () => bg.setStrokeStyle(3, isCleared ? 0xffcc00 : 0xffffff));
 
-      // Entering a level clears the stored map so a fresh one is generated
-      bg.on('pointerdown', () => {
+      // Entering a level clears the stored map so a fresh one is generated.
+      // Also creates a Run on the backend if the player is logged in.
+      bg.on('pointerdown', async () => {
         this.registry.set('currentMap', null);
+        this.registry.set('runStartTime', Date.now());
+        this.registry.set('runEnemiesDefeated', 0);
+
+        if (this.registry.get('authMode') === 'online') {
+          const loader = showLoading(this, 'Starting run');
+          const skin   = this.registry.get('selectedSkin') || 0;
+          const res    = await createRun(lvl.world, skin);
+          loader.destroy();
+          if (res.ok) {
+            this.registry.set('runID', res.data.runID);
+          } else {
+            this.registry.set('runID', null);
+            showToast(this, 'Could not save run — playing offline', 'warn');
+          }
+        }
+
         this.scene.start('DeckBuildScene', { worldLevel: lvl.world });
       });
     });

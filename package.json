@@ -6,12 +6,26 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "server:dev": "nodemon server/index.js",
+    "start": "node server/index.js",
+    "migrate": "node server/migrate.js",
+    "migrate:fresh": "node server/migrate.js --fresh",
+    "migrate:bootstrap": "node server/migrate.js --mark-applied",
+    "test:api": "node --test tests/api.test.js"
   },
   "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.5",
     "phaser": "^3.87.0"
   },
   "devDependencies": {
+    "nodemon": "^3.1.7",
     "vite": "^6.3.5"
   }
 }

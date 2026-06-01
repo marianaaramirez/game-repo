@@ -82,20 +82,38 @@ export class VitalityBoost extends BaseCard {
 }
 // Pool of all available skill card classes for random selection
 const ALL_SKILLS = [SecondChance, FreezeTime, ClearMind, DoublePower, VitalityBoost];
+
+// Lookup map: DB name → class constructor (matches names in seeds.sql)
+const SKILL_BY_NAME = {
+  'Second Chance':  SecondChance,
+  'Freeze Time':    FreezeTime,
+  'Clear Mind':     ClearMind,
+  'Double Power':   DoublePower,
+  'Vitality Boost': VitalityBoost,
+};
+
 /**
  * Returns a new instance of a randomly chosen skill card.
- * {BaseCard}
  */
 export function getRandomSkillCard() {
   const SkillClass = ALL_SKILLS[Math.floor(Math.random() * ALL_SKILLS.length)];
   return new SkillClass();
 }
+
 /**
  * Returns a skill card by index (wraps around if index exceeds array length).
- * {number} index
- * {BaseCard}
  */
 export function getSkillByIndex(index) {
   const SkillClass = ALL_SKILLS[index % ALL_SKILLS.length];
   return new SkillClass();
+}
+
+/**
+ * Hydrates a SkillCard instance from its catalog name.
+ * Used by LoginScene to rebuild player's skill deck from DB rows.
+ * Returns null if the name doesn't match any known skill class.
+ */
+export function getSkillByName(name) {
+  const SkillClass = SKILL_BY_NAME[name];
+  return SkillClass ? new SkillClass() : null;
 }
