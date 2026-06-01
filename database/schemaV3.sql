@@ -10,7 +10,7 @@ USE mathsmash;
 -- ------------------------------------------------------------
 -- PLAYER: account data. password stores bcrypt hash, never plaintext.
 -- ------------------------------------------------------------
-CREATE TABLE Player (
+CREATE TABLE IF NOT EXISTS Player (
   playerID    INT          NOT NULL AUTO_INCREMENT,
   username    VARCHAR(50)  NOT NULL UNIQUE,
   password    VARCHAR(255) NOT NULL,           -- bcrypt hash
@@ -22,7 +22,7 @@ CREATE TABLE Player (
 -- MAP: world metadata (Ancient Temple, Castle, Wasteland).
 -- Re-added since worlds need names/themes for UI.
 -- ------------------------------------------------------------
-CREATE TABLE Map (
+CREATE TABLE IF NOT EXISTS Map (
   mapID        INT          NOT NULL AUTO_INCREMENT,
   name         VARCHAR(100) NOT NULL,           -- e.g. 'Ancient Temple'
   theme        VARCHAR(100),
@@ -33,7 +33,7 @@ CREATE TABLE Map (
 -- ------------------------------------------------------------
 -- RUN: one play session (replaces Game from V1).
 -- ------------------------------------------------------------
-CREATE TABLE Run (
+CREATE TABLE IF NOT EXISTS Run (
   runID             INT      NOT NULL AUTO_INCREMENT,
   playerID          INT      NOT NULL,
   world_level       TINYINT  NOT NULL,                -- 1, 2, or 3 (renamed from `level`)
@@ -50,7 +50,7 @@ CREATE TABLE Run (
 -- ENEMY: per-world enemy catalog. Same enemy can appear in
 -- multiple map nodes of the same world.
 -- ------------------------------------------------------------
-CREATE TABLE Enemy (
+CREATE TABLE IF NOT EXISTS Enemy (
   enemyID       INT          NOT NULL AUTO_INCREMENT,
   name          VARCHAR(100) NOT NULL,
   type          ENUM('basic','trap','boss') NOT NULL DEFAULT 'basic',
@@ -69,7 +69,7 @@ CREATE TABLE Enemy (
 --   defense: none|heal|counter|reflect|regen|taunt|evade|barrier
 --   skill:   none (skill cards use class identity for behavior)
 -- ------------------------------------------------------------
-CREATE TABLE Card (
+CREATE TABLE IF NOT EXISTS Card (
   cardID       INT          NOT NULL AUTO_INCREMENT,
   name         VARCHAR(100) NOT NULL,
   type         ENUM('attack','defense','skill') NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE Card (
 -- DECK: one deck row per player (their card collection).
 -- Card membership is tracked in DeckCard (junction).
 -- ------------------------------------------------------------
-CREATE TABLE Deck (
+CREATE TABLE IF NOT EXISTS Deck (
   deckID        INT      NOT NULL AUTO_INCREMENT,
   playerID      INT      NOT NULL,
   creation_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -99,7 +99,7 @@ CREATE TABLE Deck (
 -- is_active TRUE  = card is in the active 4-card combat deck
 -- is_active FALSE = card is owned but not selected
 -- ------------------------------------------------------------
-CREATE TABLE DeckCard (
+CREATE TABLE IF NOT EXISTS DeckCard (
   deckID    INT     NOT NULL,
   cardID    INT     NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
@@ -112,7 +112,7 @@ CREATE TABLE DeckCard (
 -- SKILL_DECK: skill cards persist across defeats (roguelike).
 -- Stored separately so onDefeat() can clear Deck but keep this.
 -- ------------------------------------------------------------
-CREATE TABLE SkillDeck (
+CREATE TABLE IF NOT EXISTS SkillDeck (
   skillDeckID  INT     NOT NULL AUTO_INCREMENT,
   playerID     INT     NOT NULL,
   cardID       INT     NOT NULL,
@@ -128,7 +128,7 @@ CREATE TABLE SkillDeck (
 -- PROBLEM_STATS: every math problem the player faces.
 -- expression + answer stored to allow analytics/auditing.
 -- ------------------------------------------------------------
-CREATE TABLE ProblemStats (
+CREATE TABLE IF NOT EXISTS ProblemStats (
   problemID      INT          NOT NULL AUTO_INCREMENT,
   runID          INT          NOT NULL,
   world_level    TINYINT      NOT NULL,                  -- 1, 2, or 3
@@ -147,7 +147,7 @@ CREATE TABLE ProblemStats (
 -- ------------------------------------------------------------
 -- COMBAT: one row per combat encounter (battle, trap enemy, boss).
 -- ------------------------------------------------------------
-CREATE TABLE Combat (
+CREATE TABLE IF NOT EXISTS Combat (
   combatID       INT          NOT NULL AUTO_INCREMENT,
   runID          INT          NOT NULL,
   enemyID        INT          NOT NULL,
@@ -166,7 +166,7 @@ CREATE TABLE Combat (
 -- CARDS_USED: junction tracking which cards were played in a combat.
 -- Composite PK avoids the AUTO_INCREMENT issue from V2.
 -- ------------------------------------------------------------
-CREATE TABLE CardsUsed (
+CREATE TABLE IF NOT EXISTS CardsUsed (
   combatID    INT     NOT NULL,
   cardID      INT     NOT NULL,
   turn_number TINYINT NOT NULL DEFAULT 1,              -- which turn the card was played
@@ -179,7 +179,7 @@ CREATE TABLE CardsUsed (
 -- PLAYER_STATS: aggregated stats per player per world.
 -- One row per (playerID, world_number) pair.
 -- ------------------------------------------------------------
-CREATE TABLE PlayerStats (
+CREATE TABLE IF NOT EXISTS PlayerStats (
   playerStatsID        INT         NOT NULL AUTO_INCREMENT,
   playerID             INT         NOT NULL,
   world_number         TINYINT     NOT NULL,                  -- 1, 2, or 3
