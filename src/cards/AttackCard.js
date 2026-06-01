@@ -124,3 +124,22 @@ export function getRandomAttackCard(worldLevel = 1) {
   const factory = cards[Math.floor(Math.random() * cards.length)];
   return factory();
 }
+
+// Pre-built lookup: card name → factory (covers all worlds).
+// Used by DeckBuildScene to hydrate DB-persisted cards back into instances.
+const ATTACK_BY_NAME = {};
+Object.values(ATTACK_CARDS).forEach((pool) => {
+  pool.forEach((factory) => {
+    const sample = factory();
+    ATTACK_BY_NAME[sample.name] = factory;
+  });
+});
+
+/**
+ * Reconstructs an AttackCard instance from its canonical name.
+ * Returns null if the name doesn't match any known card.
+ */
+export function createAttackCardByName(name) {
+  const factory = ATTACK_BY_NAME[name];
+  return factory ? factory() : null;
+}

@@ -464,6 +464,192 @@ test('GET /player/me/profile — returns lastSkin + clearedLevels', async () => 
   assert.ok(res.data.clearedLevels.includes(1));
 });
 
+// ------------------------------------------------------------
+// DECK COLLECTION
+// ------------------------------------------------------------
+test('SETUP — fetch attack/defense cardIDs from catalog', async () => {
+  const atk = await http('GET', '/cards?type=attack');
+  const def = await http('GET', '/cards?type=defense');
+  assert.ok(atk.data.length > 0);
+  assert.ok(def.data.length > 0);
+  state.deckAttackCardID  = atk.data[0].cardID;
+  state.deckDefenseCardID = def.data[0].cardID;
+  // Find a skill card too — used for rejection test
+  const skl = await http('GET', '/cards?type=skill');
+  state.deckSkillCardID = skl.data[0].cardID;
+});
+
+test('GET /deck — requires auth', async () => {
+  const res = await http('GET', '/deck');
+  assert.equal(res.status, 401);
+});
+
+test('GET /deck — empty for fresh player', async () => {
+  const res = await http('GET', '/deck', null, state.token);
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.data, []);
+});
+
+test('POST /deck/cards — requires auth', async () => {
+  const res = await http('POST', '/deck/cards', { cardID: state.deckAttackCardID });
+  assert.equal(res.status, 401);
+});
+
+test('POST /deck/cards — rejects missing cardID', async () => {
+  const res = await http('POST', '/deck/cards', {}, state.token);
+  assert.equal(res.status, 400);
+});
+
+test('POST /deck/cards — rejects non-existent cardID', async () => {
+  const res = await http('POST', '/deck/cards', { cardID: 999999 }, state.token);
+  assert.equal(res.status, 404);
+});
+
+test('POST /deck/cards — rejects skill card', async () => {
+  const res = await http('POST', '/deck/cards', { cardID: state.deckSkillCardID }, state.token);
+  assert.equal(res.status, 400);
+  assert.ok(/skill-deck/i.test(res.data.error));
+});
+
+test('POST /deck/cards — adds attack card to collection', async () => {
+  const res = await http('POST', '/deck/cards', {
+    cardID:    state.deckAttackCardID,
+    is_active: true,
+  }, state.token);
+  assert.equal(res.status, 201);
+  assert.ok(res.data.deckCardID);
+  assert.equal(res.data.cardID, state.deckAttackCardID);
+  assert.equal(res.data.is_active, true);
+  state.deckCardID_A = res.data.deckCardID;
+});
+
+test('POST /deck/cards — same cardID creates a second instance', async () => {
+  const res = await http('POST', '/deck/cards', {
+    cardID:    state.deckAttackCardID,
+    is_active: false,
+  }, state.token);
+  assert.equal(res.status, 201);
+  // Different deckCardID — each copy is its own row
+  assert.notEqual(res.data.deckCardID, state.deckCardID_A);
+  state.deckCardID_B = res.data.deckCardID;
+});
+
+test('POST /deck/cards — adds defense card too', async () => {
+  const res = await http('POST', '/deck/cards', {
+    cardID: state.deckDefenseCardID,
+  }, state.token);
+  assert.equal(res.status, 201);
+  state.deckCardID_C = res.data.deckCardID;
+});
+
+test('GET /deck — lists all owned cards with Card join', async () => {
+  const res = await http('GET', '/deck', null, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.length, 3);
+  res.data.forEach((row) => {
+    assert.ok(row.name);
+    assert.ok(['attack', 'defense'].includes(row.type));
+    assert.ok(typeof row.power_value === 'number');
+    assert.ok(row.special);
+  });
+  // One should be is_active=true (the first attack copy)
+  const active = res.data.filter((r) => r.is_active);
+  assert.equal(active.length, 1);
+  assert.equal(active[0].deckCardID, state.deckCardID_A);
+});
+
+test('PUT /deck/cards/:id/active — requires auth', async () => {
+  const res = await http('PUT', `/deck/cards/${state.deckCardID_A}/active`, { is_active: false });
+  assert.equal(res.status, 401);
+});
+
+test('PUT /deck/cards/:id/active — rejects missing boolean', async () => {
+  const res = await http('PUT', `/deck/cards/${state.deckCardID_A}/active`, {}, state.token);
+  assert.equal(res.status, 400);
+});
+
+test('PUT /deck/cards/:id/active — rejects non-owned deckCardID', async () => {
+  const res = await http('PUT', '/deck/cards/999999/active', { is_active: true }, state.token);
+  assert.equal(res.status, 404);
+});
+
+test('PUT /deck/cards/:id/active — toggles is_active off', async () => {
+  const res = await http('PUT', `/deck/cards/${state.deckCardID_A}/active`,
+    { is_active: false }, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.is_active, false);
+
+  // Verify via GET
+  const check = await http('GET', '/deck', null, state.token);
+  const row = check.data.find((r) => r.deckCardID === state.deckCardID_A);
+  assert.equal(!!row.is_active, false);
+});
+
+test('PUT /deck/cards/:id/active — toggles is_active on for a different copy', async () => {
+  const res = await http('PUT', `/deck/cards/${state.deckCardID_B}/active`,
+    { is_active: true }, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.is_active, true);
+});
+
+test('PUT /deck/cards/:id/active — enforces max 4 active cap', async () => {
+  // Reset known state: ensure only 1 active card (B from earlier test)
+  // Add 4 more cards so collection has 5 inactive + 1 active = 6 total
+  const newIDs = [];
+  for (let i = 0; i < 4; i++) {
+    const r = await http('POST', '/deck/cards', {
+      cardID: state.deckAttackCardID,
+      is_active: false,
+    }, state.token);
+    newIDs.push(r.data.deckCardID);
+  }
+
+  // Activate 3 of them → with B already active = 4 total active (at cap)
+  for (let i = 0; i < 3; i++) {
+    const r = await http('PUT', `/deck/cards/${newIDs[i]}/active`,
+      { is_active: true }, state.token);
+    assert.equal(r.status, 200);
+  }
+
+  // Attempt to activate a 5th card → should be rejected with 409
+  const overCap = await http('PUT', `/deck/cards/${newIDs[3]}/active`,
+    { is_active: true }, state.token);
+  assert.equal(overCap.status, 409);
+  assert.ok(/4 active cards/i.test(overCap.data.error));
+
+  // Deactivating still works even when at the cap
+  const deactivate = await http('PUT', `/deck/cards/${newIDs[0]}/active`,
+    { is_active: false }, state.token);
+  assert.equal(deactivate.status, 200);
+
+  // Now activating the 5th should succeed (cap freed)
+  const retry = await http('PUT', `/deck/cards/${newIDs[3]}/active`,
+    { is_active: true }, state.token);
+  assert.equal(retry.status, 200);
+});
+
+test('DELETE /deck — requires auth', async () => {
+  const res = await http('DELETE', '/deck');
+  assert.equal(res.status, 401);
+});
+
+test('DELETE /deck — wipes the collection', async () => {
+  const res = await http('DELETE', '/deck', null, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.wiped, true);
+
+  // Verify empty
+  const check = await http('GET', '/deck', null, state.token);
+  assert.deepEqual(check.data, []);
+});
+
+test('DELETE /deck — does NOT wipe skill cards', async () => {
+  // From earlier skill-deck tests we owned 2 skill cards
+  const check = await http('GET', '/skill-deck', null, state.token);
+  assert.equal(check.status, 200);
+  assert.ok(check.data.length >= 1, 'skill cards should survive deck wipe');
+});
+
 after(() => {
   console.log('\n[cleanup] test user remains in DB:', state.username);
   console.log('          (drop manually if needed: DELETE FROM Player WHERE username=?)');

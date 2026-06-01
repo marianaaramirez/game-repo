@@ -11,6 +11,7 @@
 
 import Phaser from 'phaser';
 import { clearToken } from '../api.js';
+import { drawConnectionBadge, showConfirmDialog } from '../ui/uiHelpers.js';
 
 export default class HomeScene extends Phaser.Scene {
   constructor() {
@@ -36,28 +37,27 @@ export default class HomeScene extends Phaser.Scene {
       color: '#ffffff',
     }).setOrigin(0.5);
 
-    // Account info (top-right) — only shown in online mode
+    // Global online/offline badge (top-right corner, shared across scenes)
+    drawConnectionBadge(this);
+
+    // Account info (below the badge) — only shown in online mode
     const authMode = this.registry.get('authMode');
     const username = this.registry.get('username');
     if (authMode === 'online' && username) {
-      this.add.text(790, 18, `Logged in as: ${username}`, {
-        fontSize: '13px', fontFamily: 'Arial', color: '#aaaaaa',
+      this.add.text(790, 42, `${username}`, {
+        fontSize: '12px', fontFamily: 'Arial', color: '#aaaaaa',
       }).setOrigin(1, 0);
 
-      // Logout button (top-right corner)
-      const logoutBg = this.add.rectangle(720, 50, 130, 30, 0xaa3333, 0.85)
+      // Logout button (top-right, below the username)
+      const logoutBg = this.add.rectangle(720, 75, 130, 30, 0xaa3333, 0.85)
         .setInteractive({ useHandCursor: true })
         .setStrokeStyle(2, 0xff5555);
-      this.add.text(720, 50, 'LOGOUT', {
+      this.add.text(720, 75, 'LOGOUT', {
         fontSize: '13px', fontFamily: 'Arial Black', color: '#ffffff',
       }).setOrigin(0.5);
       logoutBg.on('pointerover', () => logoutBg.setFillStyle(0xcc4444, 1));
       logoutBg.on('pointerout',  () => logoutBg.setFillStyle(0xaa3333, 0.85));
-      logoutBg.on('pointerdown', () => this.handleLogout());
-    } else if (authMode === 'offline') {
-      this.add.text(790, 18, 'Offline mode', {
-        fontSize: '13px', fontFamily: 'Arial', color: '#aaaaaa',
-      }).setOrigin(1, 0);
+      logoutBg.on('pointerdown', () => this.confirmLogout());
     }
 
     // Main navigation buttons
@@ -82,6 +82,15 @@ export default class HomeScene extends Phaser.Scene {
   /**
    * Logs the player out: clears the JWT, wipes registry state, returns to LoginScene.
    */
+  /**
+   * Shows a confirm modal before actually logging out. Prevents accidental clicks.
+   */
+  confirmLogout() {
+    showConfirmDialog(this, 'Log out and clear local session?', () => {
+      this.handleLogout();
+    });
+  }
+
   handleLogout() {
     clearToken();
     // Wipe ALL session-scoped registry state so the next user starts clean

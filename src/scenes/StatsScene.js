@@ -9,6 +9,7 @@
 
 import Phaser from 'phaser';
 import { getStats, getLeaderboard } from '../api.js';
+import { drawConnectionBadge } from '../ui/uiHelpers.js';
 
 const WORLD_NAMES = { 1: 'Ancient Temple', 2: 'Castle', 3: 'Wasteland' };
 
@@ -23,6 +24,7 @@ export default class StatsScene extends Phaser.Scene {
 
   async create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawConnectionBadge(this);
 
     this.add.text(400, 35, 'STATS', {
       fontSize: '32px', fontFamily: 'Arial Black', color: '#ffcc00',

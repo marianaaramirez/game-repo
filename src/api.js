@@ -78,6 +78,12 @@ export const unequipSkillCard = ()        => request('DELETE', '/skill-deck/equi
 // --- Player profile (derived data) ---
 export const getProfile = () => request('GET', '/player/me/profile');
 
+// --- Deck collection (cross-session persistence) ---
+export const getDeck            = ()                          => request('GET',    '/deck');
+export const addDeckCard        = (cardID, isActive = false)  => request('POST',   '/deck/cards', { cardID, is_active: isActive });
+export const setDeckCardActive  = (deckCardID, isActive)      => request('PUT',    `/deck/cards/${deckCardID}/active`, { is_active: isActive });
+export const wipeDeck           = ()                          => request('DELETE', '/deck');
+
 /**
  * Fetch all enemies + all cards and build name -> ID lookup maps.
  * Cached in window.__catalog for fast lookup during combat.

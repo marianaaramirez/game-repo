@@ -29,7 +29,8 @@ import MathSystem from '../systems/MathSystem.js';
 import TimerSystem from '../systems/TimerSystem.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
-import { postProblem, postCombat, updateRun, getEnemyIDByName, getCardIDByName } from '../api.js';
+import { postProblem, postCombat, updateRun, wipeDeck, getEnemyIDByName, getCardIDByName } from '../api.js';
+import { drawBackButton } from '../ui/uiHelpers.js';
 
 export default class CombatScene extends Phaser.Scene {
   constructor() {
@@ -102,6 +103,15 @@ export default class CombatScene extends Phaser.Scene {
     this.drawBattleUI();
     this.drawCards();
     this.setupKeyboardInput();
+
+    // Forfeit button — abandons combat, marks run as lose, wipes deck.
+    // Positioned bottom-right where no other combat UI lives.
+    this.forfeitButton = drawBackButton(this, 'LevelSelectScene', {
+      x: 740, y: 580,
+      label: 'FORFEIT',
+      confirmMessage: 'Forfeit combat? Your run ends and your collection is wiped.',
+      onBeforeNavigate: () => this.forfeitCombat(),
+    });
 
     // Trap challenge skips card selection and jumps straight to a math problem
     if (this.trapChallenge) {
@@ -663,6 +673,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   handleWin() {
     this.combatState = CombatSystem.COMBAT_STATE.WIN;
+    this.disableForfeit();
 
     // Mark the current map node as completed so MapScene renders it correctly
     const map = this.registry.get('currentMap');
@@ -705,8 +716,9 @@ export default class CombatScene extends Phaser.Scene {
    */
   handleLose() {
     this.combatState = CombatSystem.COMBAT_STATE.LOSE;
+    this.disableForfeit();
 
-    // Backend tracking — log combat loss + close out the Run
+    // Backend tracking — log combat loss + close out the Run + wipe collection
     this.logCombatResult('lose');
     const runID = this.registry.get('runID');
     if (runID) {
@@ -714,6 +726,10 @@ export default class CombatScene extends Phaser.Scene {
         result:   'lose',
         duration: this.computeRunDuration(),
       });
+    }
+    // Roguelike: wipe attack/defense collection (skill cards stay)
+    if (this.registry.get('authMode') === 'online') {
+      wipeDeck();
     }
 
     this.messageText.setText('DEFEAT...');
@@ -860,5 +876,42 @@ export default class CombatScene extends Phaser.Scene {
     const start = this.registry.get('runStartTime');
     if (!start) return 0;
     return Math.max(0, Math.round((Date.now() - start) / 1000));
+  }
+
+  /**
+   * Forfeit handler — same effect as a defeat: marks run lose, wipes deck,
+   * keeps skill cards, returns to LevelSelectScene via drawBackButton navigation.
+   * Guards against firing after combat already resolved (win/lose) to avoid
+   * overwriting a victory with a forfeit loss.
+   */
+  forfeitCombat() {
+    if (this.combatState === CombatSystem.COMBAT_STATE.WIN ||
+        this.combatState === CombatSystem.COMBAT_STATE.LOSE) {
+      return;
+    }
+    const player = this.registry.get('player');
+    if (player) player.onDefeat();
+    this.registry.set('currentMap', null);
+    this.combatState = CombatSystem.COMBAT_STATE.LOSE;
+    this.timerActive = false;
+
+    if (this.registry.get('authMode') === 'online') {
+      const runID = this.registry.get('runID');
+      if (runID) {
+        updateRun(runID, { result: 'lose', duration: this.computeRunDuration() });
+      }
+      wipeDeck();
+    }
+  }
+
+  /**
+   * Disables the FORFEIT button so it can't fire after combat resolves.
+   */
+  disableForfeit() {
+    if (this.forfeitButton?.bg) {
+      this.forfeitButton.bg.disableInteractive();
+      this.forfeitButton.bg.setFillStyle(0x333333, 0.5);
+      this.forfeitButton.text.setColor('#666666');
+    }
   }
 }

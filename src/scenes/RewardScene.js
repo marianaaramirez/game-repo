@@ -15,7 +15,8 @@
 import Phaser from 'phaser';
 import CardFactory from '../cards/CardFactory.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
-import { addSkillCard, getCardIDByName } from '../api.js';
+import { addSkillCard, addDeckCard, getCardIDByName } from '../api.js';
+import { drawConnectionBadge } from '../ui/uiHelpers.js';
 
 export default class RewardScene extends Phaser.Scene {
   constructor() {
@@ -31,8 +32,9 @@ export default class RewardScene extends Phaser.Scene {
     this.chestReward = data.chestReward || false;
   }
 
-  create() {
+  async create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawConnectionBadge(this);
 
     const player = this.registry.get('player');
 
@@ -79,6 +81,7 @@ export default class RewardScene extends Phaser.Scene {
       if (Math.random() < 0.6) {
         newCard = CardFactory.createRewardCard(this.worldLevel);
         player.addCard(newCard);
+        await this.persistRewardCard(newCard, player);
       } else {
         const healAmount = Math.round(player.maxHp * 0.25);
         player.heal(healAmount);
@@ -91,6 +94,7 @@ export default class RewardScene extends Phaser.Scene {
       // Normal combat win: an attack/defense card
       newCard = CardFactory.createRewardCard(this.worldLevel);
       player.addCard(newCard);
+      this.persistRewardCard(newCard, player);
     }
 
     // --- Render the awarded card ---
@@ -160,5 +164,21 @@ export default class RewardScene extends Phaser.Scene {
         this.scene.start('DeckBuildScene', { worldLevel: this.worldLevel });
       }
     });
+  }
+
+  /**
+   * Persists a newly-awarded attack/defense card to the backend collection.
+   * Tags the local card with dbDeckCardID so DeckBuildScene can sync toggles.
+   * Fire-and-forget; silent failure if offline or catalog missing.
+   */
+  async persistRewardCard(card, player) {
+    if (this.registry.get('authMode') !== 'online') return;
+    const cardID = getCardIDByName(card.name);
+    if (!cardID) return;
+    const isActive = player.deck.includes(card);
+    const res = await addDeckCard(cardID, isActive);
+    if (res.ok) {
+      card.dbDeckCardID = res.data.deckCardID;
+    }
   }
 }

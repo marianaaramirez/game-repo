@@ -15,6 +15,7 @@
  */
 
 import Phaser from 'phaser';
+import { drawConnectionBadge } from '../ui/uiHelpers.js';
 
 // Skin definitions: name, color, and short description shown below character
 const SKINS = [
@@ -30,6 +31,7 @@ export default class CharSelectScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawConnectionBadge(this);
 
     this.add.text(400, 60, 'CHOOSE YOUR CHARACTER', {
       fontSize: '30px',

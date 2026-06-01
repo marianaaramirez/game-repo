@@ -129,3 +129,21 @@ export function getRandomDefenseCard(worldLevel = 1) {
   const factory = cards[Math.floor(Math.random() * cards.length)];
   return factory();
 }
+
+// Pre-built lookup: card name → factory (covers all worlds).
+const DEFENSE_BY_NAME = {};
+Object.values(DEFENSE_CARDS).forEach((pool) => {
+  pool.forEach((factory) => {
+    const sample = factory();
+    DEFENSE_BY_NAME[sample.name] = factory;
+  });
+});
+
+/**
+ * Reconstructs a DefenseCard instance from its canonical name.
+ * Returns null if the name doesn't match any known card.
+ */
+export function createDefenseCardByName(name) {
+  const factory = DEFENSE_BY_NAME[name];
+  return factory ? factory() : null;
+}

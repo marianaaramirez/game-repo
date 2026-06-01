@@ -11,6 +11,7 @@
  */
 
 import Phaser from 'phaser';
+import { drawBackButton, drawConnectionBadge } from '../ui/uiHelpers.js';
 
 export default class InstructionsScene extends Phaser.Scene {
   constructor() {
@@ -19,6 +20,8 @@ export default class InstructionsScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawConnectionBadge(this);
+    drawBackButton(this, 'CharSelectScene');
 
     this.add.text(400, 40, 'HOW TO PLAY', {
       fontSize: '32px',

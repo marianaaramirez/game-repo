@@ -20,6 +20,7 @@
 
 import Phaser from 'phaser';
 import { createRun } from '../api.js';
+import { drawConnectionBadge, showLoading, showToast } from '../ui/uiHelpers.js';
 
 // Definition of each selectable level
 const LEVELS = [
@@ -35,6 +36,7 @@ export default class LevelSelectScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+    drawConnectionBadge(this);
 
     // Title
     this.add.text(400, 50, 'SELECT A LEVEL', {
@@ -88,14 +90,16 @@ export default class LevelSelectScene extends Phaser.Scene {
         this.registry.set('runStartTime', Date.now());
         this.registry.set('runEnemiesDefeated', 0);
 
-        // Fire-and-forget backend Run creation (online mode only)
         if (this.registry.get('authMode') === 'online') {
+          const loader = showLoading(this, 'Starting run');
           const skin   = this.registry.get('selectedSkin') || 0;
           const res    = await createRun(lvl.world, skin);
+          loader.destroy();
           if (res.ok) {
             this.registry.set('runID', res.data.runID);
           } else {
             this.registry.set('runID', null);
+            showToast(this, 'Could not save run — playing offline', 'warn');
           }
         }
 

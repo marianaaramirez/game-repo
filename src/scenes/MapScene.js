@@ -20,6 +20,8 @@
 import Phaser from 'phaser';
 import MapSystem from '../systems/MapSystem.js';
 import EnemyFactory from '../entities/enemies/EnemyFactory.js';
+import { updateRun, wipeDeck } from '../api.js';
+import { drawConnectionBadge, drawBackButton } from '../ui/uiHelpers.js';
 
 // Visual theme per world: background color, node color, display name
 const WORLD_COLORS = {
@@ -44,6 +46,11 @@ export default class MapScene extends Phaser.Scene {
   create() {
     const colors = WORLD_COLORS[this.worldLevel] || WORLD_COLORS[1];
     this.cameras.main.setBackgroundColor(colors.bg);
+    drawConnectionBadge(this);
+    drawBackButton(this, 'LevelSelectScene', {
+      confirmMessage: 'Abandon this run? Your collection will be wiped.',
+      onBeforeNavigate: () => this.abandonRun(),
+    });
 
     // Reuse existing map for this world, or generate a new one
     let map = this.registry.get('currentMap');
@@ -232,5 +239,29 @@ export default class MapScene extends Phaser.Scene {
         });
       }
     }
+  }
+
+  /**
+   * Marks the run as a loss on the backend, wipes the player's local + DB collection,
+   * and clears the map so a fresh one is generated next time.
+   * Skill cards persist (roguelike rule).
+   */
+  abandonRun() {
+    const player = this.registry.get('player');
+    if (player) player.onDefeat();
+    this.registry.set('currentMap', null);
+
+    if (this.registry.get('authMode') === 'online') {
+      const runID = this.registry.get('runID');
+      if (runID) {
+        updateRun(runID, { result: 'lose', duration: this.computeRunDuration() });
+      }
+      wipeDeck();
+    }
+  }
+
+  computeRunDuration() {
+    const start = this.registry.get('runStartTime');
+    return start ? Math.max(0, Math.round((Date.now() - start) / 1000)) : 0;
   }
 }
