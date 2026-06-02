@@ -49,8 +49,9 @@
       position: static !important;
       box-shadow: 0 6px 32px rgba(0, 0, 0, 0.6);
       border-radius: 6px;
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+      /* Smooth rendering for text. DO NOT use crisp-edges / pixelated here —
+         those force nearest-neighbor scaling which makes text blurry/jagged. */
+      image-rendering: auto;
     }
   </style>
 </head>

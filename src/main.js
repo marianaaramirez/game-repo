@@ -28,12 +28,17 @@ const config = {
   height: 600,
   backgroundColor: '#1a1a2e',
   parent: 'game-container',
-  // DOM container removed — LoginScene uses Phaser-native inputs.
-  // It created a position:absolute wrapper that broke flex centering.
+  // High-DPI rendering — multiplies internal pixel buffer by devicePixelRatio
+  // so text stays sharp on retina / 4K displays. Default 1 would render at
+  // 800x600 and let the browser upscale (blurry on hi-DPI).
+  resolution: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
+  // roundPixels false → text positions stay sub-pixel accurate (sharper edges)
+  roundPixels: false,
+  antialias: true,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    expandParent: false, // do NOT inflate the parent — keep CSS in control
+    expandParent: false,
     min: { width: 320, height: 240 },
     max: { width: 1920, height: 1440 },
   },
