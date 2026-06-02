@@ -61,13 +61,14 @@ export default class HomeScene extends Phaser.Scene {
       logoutBg.on('pointerdown', () => this.confirmLogout());
     }
 
-    // Main navigation buttons — vertically balanced with title block above
-    this.createButton(400, 380, 'PLAY', () => {
-      this.scene.start('CharSelectScene');
-    });
-    this.createButton(400, 455, 'STATS', () => {
-      this.scene.start('StatsScene');
-    });
+    // Main navigation — primary row (large) + secondary row (small).
+    // Primary:    PLAY               LOAD GAME
+    // Secondary:  INSTRUCTIONS  STATS  OPTIONS
+    this.createButton(285, 360, 'PLAY',      () => this.scene.start('CharSelectScene'));
+    this.createButton(515, 360, 'LOAD GAME', () => this.scene.start('SavedGamesScene'));
+    this.createSmallButton(220, 450, 'INSTRUCTIONS', () => this.scene.start('InstructionsScene'));
+    this.createSmallButton(400, 450, 'STATS',        () => this.scene.start('StatsScene'));
+    this.createSmallButton(580, 450, 'OPTIONS',      () => this.scene.start('OptionsScene'));
 
     // Idle floating animation on the title — loops between y=220 and y=230
     this.tweens.add({
@@ -141,6 +142,22 @@ export default class HomeScene extends Phaser.Scene {
 
     bg.on('pointerdown', callback);
 
+    return { bg, text };
+  }
+
+  /**
+   * Smaller secondary button — used for the bottom row (Instructions/Stats/Options).
+   */
+  createSmallButton(x, y, label, callback) {
+    const bg = this.add.rectangle(x, y, 160, 40, 0x4466aa, 0.85)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0x88aaff);
+    const text = this.add.text(x, y, label, {
+      fontSize: '14px', fontFamily: 'Arial Black', color: '#ffffff',
+    }).setOrigin(0.5);
+    bg.on('pointerover', () => { bg.setFillStyle(0x5577cc, 1); text.setScale(1.05); });
+    bg.on('pointerout',  () => { bg.setFillStyle(0x4466aa, 0.85); text.setScale(1); });
+    bg.on('pointerdown', callback);
     return { bg, text };
   }
 }

@@ -29,8 +29,8 @@ import MathSystem from '../systems/MathSystem.js';
 import TimerSystem from '../systems/TimerSystem.js';
 import CombatSystem from '../systems/CombatSystem.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
-import { postProblem, postCombat, updateRun, wipeDeck, getEnemyIDByName, getCardIDByName } from '../api.js';
-import { drawBackButton } from '../ui/uiHelpers.js';
+import { postProblem, postCombat, updateRun, wipeDeck, saveRun, deleteRunSave, getEnemyIDByName, getCardIDByName } from '../api.js';
+import { drawBackButton, showConfirmDialog, showToast } from '../ui/uiHelpers.js';
 
 export default class CombatScene extends Phaser.Scene {
   constructor() {
@@ -46,6 +46,8 @@ export default class CombatScene extends Phaser.Scene {
     this.nodeIndex     = data.nodeIndex     || 0;
     this.battleNumber  = data.battleNumber  || null;
     this.trapChallenge = data.trapChallenge || false;
+    // Optional combat-restore payload from SavedGamesScene
+    this.combatRestore = data.combatRestore || null;
   }
 
   create() {
@@ -100,6 +102,11 @@ export default class CombatScene extends Phaser.Scene {
     this.totalDamageDealt    = 0;
     this.lastProblemID       = null;
 
+    // If a combat-restore payload is present, override the freshly-built state.
+    if (this.combatRestore) {
+      this.applyCombatRestore(this.combatRestore);
+    }
+
     this.drawBattleUI();
     this.drawCards();
     this.setupKeyboardInput();
@@ -112,6 +119,10 @@ export default class CombatScene extends Phaser.Scene {
       confirmMessage: 'Forfeit combat? Your run ends and your collection is wiped.',
       onBeforeNavigate: () => this.forfeitCombat(),
     });
+
+    // Pause button — saves progress and exits to HomeScene. Disabled while a
+    // math problem is on screen (player would lose answer mid-typing).
+    this.pauseButton = this.drawPauseButton();
 
     // Trap challenge skips card selection and jumps straight to a math problem
     if (this.trapChallenge) {
@@ -351,6 +362,7 @@ export default class CombatScene extends Phaser.Scene {
 
     // Attack / Defense cards: generate a math problem and start the timer
     this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
+    this.updatePauseAvailability();
 
     // Lock all cards — no switching allowed once problem is shown
     this.cardObjects.forEach((obj) => obj.disableInteractive());
@@ -655,6 +667,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   startNewTurn() {
     this.combatState  = CombatSystem.COMBAT_STATE.SELECT_CARD;
+    this.updatePauseAvailability();
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
@@ -693,6 +706,11 @@ export default class CombatScene extends Phaser.Scene {
     // Backend tracking — log combat win + bump run.enemies_defeated.
     // If this was a boss kill, also mark run as won.
     this.logCombatResult('win');
+    // Boss win = run completes → drop any pending save
+    if (this.isBoss && this.registry.get('authMode') === 'online') {
+      const runID = this.registry.get('runID');
+      if (runID) deleteRunSave(runID);
+    }
     const newDefeated = (this.registry.get('runEnemiesDefeated') || 0) + 1;
     this.registry.set('runEnemiesDefeated', newDefeated);
     const runID = this.registry.get('runID');
@@ -738,6 +756,8 @@ export default class CombatScene extends Phaser.Scene {
     // Roguelike: wipe attack/defense collection (skill cards stay)
     if (this.registry.get('authMode') === 'online') {
       wipeDeck();
+      const runID = this.registry.get('runID');
+      if (runID) deleteRunSave(runID);
     }
 
     this.messageText.setText('DEFEAT...');
@@ -920,6 +940,156 @@ export default class CombatScene extends Phaser.Scene {
       this.forfeitButton.bg.disableInteractive();
       this.forfeitButton.bg.setFillStyle(0x333333, 0.5);
       this.forfeitButton.text.setColor('#666666');
+    }
+  }
+
+  // ============================================================
+  // Pause + save
+  // ============================================================
+
+  /**
+   * Draws the pause button (bottom-left). Refuses to fire if the player is
+   * in the middle of a math problem or any non-SELECT_CARD state.
+   */
+  drawPauseButton() {
+    const x = 60, y = 580;
+    const bg = this.add.rectangle(x, y, 100, 30, 0x4466aa, 0.9)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0xffffff)
+      .setDepth(1000);
+    const text = this.add.text(x, y, '|| PAUSE', {
+      fontSize: '13px', fontFamily: 'Arial Black', color: '#ffffff',
+    }).setOrigin(0.5).setDepth(1000);
+
+    bg.on('pointerover', () => bg.setFillStyle(0x6688cc, 1));
+    bg.on('pointerout',  () => bg.setFillStyle(0x4466aa, 0.9));
+    bg.on('pointerdown', () => this.tryPause());
+    return { bg, text };
+  }
+
+  /**
+   * Updates pause button appearance based on combatState.
+   * Pause only allowed during SELECT_CARD (not mid-problem, not enemy turn).
+   */
+  updatePauseAvailability() {
+    if (!this.pauseButton) return;
+    const available = this.combatState === CombatSystem.COMBAT_STATE.SELECT_CARD;
+    this.pauseButton.bg.setFillStyle(available ? 0x4466aa : 0x333333, available ? 0.9 : 0.5);
+    this.pauseButton.text.setColor(available ? '#ffffff' : '#666666');
+  }
+
+  /**
+   * Handles pause click — checks state, confirms, saves, navigates away.
+   */
+  tryPause() {
+    if (this.combatState !== CombatSystem.COMBAT_STATE.SELECT_CARD) {
+      showToast(this, 'Cannot pause during a math problem', 'warn');
+      return;
+    }
+    if (this.registry.get('authMode') !== 'online') {
+      showToast(this, 'Pause requires online mode', 'warn');
+      return;
+    }
+    showConfirmDialog(this,
+      'Save progress and quit to menu?\nYou can resume this run from HomeScene > LOAD GAME.',
+      () => this.savePauseAndExit()
+    );
+  }
+
+  /**
+   * Builds a state snapshot, PUTs it to /run/:id/save, navigates to HomeScene.
+   * The combat itself is discarded — on resume the player returns to MapScene
+   * at their current node and re-enters this fight.
+   */
+  async savePauseAndExit() {
+    const runID = this.registry.get('runID');
+    if (!runID) {
+      showToast(this, 'No active run to save', 'error');
+      return;
+    }
+    const player = this.registry.get('player');
+    const map    = this.registry.get('currentMap');
+
+    const state = {
+      world_level:       this.worldLevel,
+      enemies_defeated:  this.registry.get('runEnemiesDefeated') || 0,
+      duration_so_far:   this.computeRunDuration(),
+      player: player ? {
+        hp:        player.hp,
+        maxHp:     player.maxHp,
+        level:     player.level,
+        skinIndex: player.skinIndex,
+      } : null,
+      map: map ? {
+        currentNode:    map.currentNode,
+        completedNodes: map.nodes.filter((n) => n.completed).map((n) => n.id),
+      } : null,
+      // Full combat snapshot — re-enter the SAME fight on resume.
+      combat: {
+        enemyName:     this.enemy.name,
+        enemyHp:       this.enemy.hp,
+        enemyMaxHp:    this.enemy.maxHp,
+        enemyBleed:    this.enemy.bleed || 0,
+        enemyBleedDmg: this.enemy.bleedDamage || 0,
+        isBoss:        this.isBoss,
+        nodeIndex:     this.nodeIndex,
+        battleNumber:  this.battleNumber,
+        turnCount:     this.turnCount,
+        activeDefense: this.activeDefense,
+        totalDamageDealt: this.totalDamageDealt,
+        combatContext: {
+          cardEffectivenessModifier: this.combatContext.cardEffectivenessModifier,
+          enemyDamageBoost:          this.combatContext.enemyDamageBoost,
+          timerReduction:            this.combatContext.timerReduction,
+          enemyDoubleAction:         this.combatContext.enemyDoubleAction,
+          enemySkipAttack:           this.combatContext.enemySkipAttack,
+          disabledCardIndex:         this.combatContext.disabledCardIndex,
+          lockedCardIndex:           this.combatContext.lockedCardIndex,
+          secondChance:              this.combatContext.secondChance,
+          clearMind:                 this.combatContext.clearMind,
+          doublePower:               this.combatContext.doublePower,
+          rogueCounter:              this.combatContext.rogueCounter,
+          playerRegen:               this.combatContext.playerRegen,
+          playerRegenAmount:         this.combatContext.playerRegenAmount,
+          tauntForceSkill:           this.combatContext.tauntForceSkill,
+          evadeChance:               this.combatContext.evadeChance,
+          barrierTurns:              this.combatContext.barrierTurns,
+        },
+      },
+    };
+
+    const res = await saveRun(runID, state);
+    if (!res.ok) {
+      showToast(this, `Save failed: ${res.error}`, 'error');
+      return;
+    }
+    // Stop timer so it doesn't fire mid-transition
+    this.timerActive = false;
+    this.scene.start('HomeScene');
+  }
+
+  /**
+   * Restores combat state from a saved snapshot (from SavedGamesScene resume).
+   * Overrides enemy HP, combatContext flags, turn counter, etc.
+   */
+  applyCombatRestore(snap) {
+    // Enemy state
+    if (this.enemy) {
+      this.enemy.hp          = snap.enemyHp;
+      this.enemy.maxHp       = snap.enemyMaxHp || this.enemy.maxHp;
+      if (snap.enemyBleed) {
+        this.enemy.bleed       = snap.enemyBleed;
+        this.enemy.bleedDamage = snap.enemyBleedDmg;
+      }
+    }
+    // Combat-scoped scalars
+    this.activeDefense    = snap.activeDefense    || 0;
+    this.turnCount        = snap.turnCount        || 1;
+    this.totalDamageDealt = snap.totalDamageDealt || 0;
+
+    // Merge restored combatContext into the freshly-built one
+    if (snap.combatContext) {
+      Object.assign(this.combatContext, snap.combatContext);
     }
   }
 }

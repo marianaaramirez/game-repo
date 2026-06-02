@@ -78,6 +78,12 @@ export const unequipSkillCard = ()        => request('DELETE', '/skill-deck/equi
 // --- Player profile (derived data) ---
 export const getProfile = () => request('GET', '/player/me/profile');
 
+// --- Pause / resume (run snapshots) ---
+export const saveRun       = (runID, state) => request('PUT',    `/run/${runID}/save`, { state });
+export const loadRunSave   = (runID)        => request('GET',    `/run/${runID}/save`);
+export const listSavedRuns = ()             => request('GET',    '/saved-runs');
+export const deleteRunSave = (runID)        => request('DELETE', `/run/${runID}/save`);
+
 // --- Deck collection (cross-session persistence) ---
 export const getDeck            = ()                          => request('GET',    '/deck');
 export const addDeckCard        = (cardID, isActive = false)  => request('POST',   '/deck/cards', { cardID, is_active: isActive });

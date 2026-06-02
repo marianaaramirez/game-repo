@@ -67,4 +67,18 @@ function createTrapEnemy() {
   return new TrapClass();
 }
 
-export default { createRandomEnemy, createBoss, createTrapEnemy };
+// Lookup map: enemy display name → constructor (used to rehydrate from saves).
+const ENEMY_BY_NAME = {};
+[...BASIC_ENEMIES, ...TRAP_ENEMIES, VampireKing, BoneMage, Titan].forEach((Cls) => {
+  ENEMY_BY_NAME[new Cls().name] = Cls;
+});
+
+/**
+ * Rebuilds a fresh enemy instance from its name. Returns null if unknown.
+ */
+function createByName(name) {
+  const Cls = ENEMY_BY_NAME[name];
+  return Cls ? new Cls() : null;
+}
+
+export default { createRandomEnemy, createBoss, createTrapEnemy, createByName };

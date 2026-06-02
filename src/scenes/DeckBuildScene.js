@@ -24,6 +24,7 @@ import Player from '../entities/Player.js';
 import CardFactory from '../cards/CardFactory.js';
 import { CARD_TYPES } from '../cards/BaseCard.js';
 import { getSkillByName } from '../cards/SkillCard.js';
+import EnemyFactory from '../entities/enemies/EnemyFactory.js';
 import { createAttackCardByName } from '../cards/AttackCard.js';
 import { createDefenseCardByName } from '../cards/DefenseCard.js';
 import {
@@ -46,6 +47,7 @@ export default class DeckBuildScene extends Phaser.Scene {
    */
   init(data) {
     this.worldLevel = data.worldLevel || 1;
+    this.autoResume = !!(data && data.autoResume);
   }
 
   async create() {
@@ -55,18 +57,23 @@ export default class DeckBuildScene extends Phaser.Scene {
 
     // Create the Player on the first ever run
     let player = this.registry.get('player');
-    if (!player) {
+    const isNewPlayer = !player;
+    if (isNewPlayer) {
       const skinIndex = this.registry.get('selectedSkin') || 0;
       player = new Player(skinIndex);
       this.registry.set('player', player);
+    }
 
-      // Restore persisted state from backend (online mode only, with loading overlay)
-      if (this.registry.get('authMode') === 'online') {
-        const loader = showLoading(this, 'Loading deck');
-        await this.hydrateSkillDeck(player);
-        await this.hydrateCollection(player);
-        loader.destroy();
-      }
+    // Hydrate from backend when the local collection is empty — covers both
+    // first-time create and "resume saved run" (player exists but starts blank).
+    const needsHydration = player.collection.length === 0
+      && player.skillCards.length === 0
+      && this.registry.get('authMode') === 'online';
+    if (needsHydration) {
+      const loader = showLoading(this, 'Loading deck');
+      await this.hydrateSkillDeck(player);
+      await this.hydrateCollection(player);
+      loader.destroy();
     }
 
     // Build the starting collection only the first time (empty collection).
@@ -83,6 +90,27 @@ export default class DeckBuildScene extends Phaser.Scene {
     }
 
     this.player = player;
+
+    // Auto-resume — if SavedGamesScene flagged a combat restore, set up the
+    // enemy + map state then jump straight into CombatScene.
+    if (this.autoResume) {
+      const snap = this.registry.get('pendingCombatRestore');
+      if (snap) {
+        this.registry.set('pendingCombatRestore', null);
+        const enemy = EnemyFactory.createByName(snap.enemyName);
+        if (enemy) {
+          this.registry.set('currentEnemy', enemy);
+          this.registry.set('isBoss', !!snap.isBoss);
+          this.scene.start('CombatScene', {
+            worldLevel:    this.worldLevel,
+            nodeIndex:     snap.nodeIndex,
+            battleNumber:  snap.battleNumber,
+            combatRestore: snap,
+          });
+          return;
+        }
+      }
+    }
 
     // --- Header ---
     this.add.text(400, 28, 'BUILD YOUR DECK', {
