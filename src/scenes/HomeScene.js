@@ -21,8 +21,9 @@ export default class HomeScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
-    // Main title with floating animation applied below
-    const title = this.add.text(400, 120, 'MATH SMASH', {
+    // Main title — title block + button block balanced around canvas vertical center.
+    // Gap above title (~140px from logout) ≈ gap below STATS (~140px from bottom edge).
+    const title = this.add.text(400, 220, 'MATH SMASH', {
       fontSize: '48px',
       fontFamily: 'Arial Black, Arial',
       color: '#ffcc00',
@@ -31,7 +32,7 @@ export default class HomeScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Subtitle below the main title
-    const subtitle = this.add.text(400, 175, 'Card Adventure', {
+    const subtitle = this.add.text(400, 275, 'Card Adventure', {
       fontSize: '24px',
       fontFamily: 'Arial',
       color: '#ffffff',
@@ -60,21 +61,21 @@ export default class HomeScene extends Phaser.Scene {
       logoutBg.on('pointerdown', () => this.confirmLogout());
     }
 
-    // Main navigation buttons
-    this.createButton(400, 340, 'PLAY', () => {
+    // Main navigation buttons — vertically balanced with title block above
+    this.createButton(400, 380, 'PLAY', () => {
       this.scene.start('CharSelectScene');
     });
-    this.createButton(400, 410, 'STATS', () => {
+    this.createButton(400, 455, 'STATS', () => {
       this.scene.start('StatsScene');
     });
 
-    // Idle floating animation on the title — loops forever with sine easing
+    // Idle floating animation on the title — loops between y=220 and y=230
     this.tweens.add({
       targets: title,
-      y: 130,
+      y: 230,
       duration: 1500,
-      yoyo: true,    // Reverses back to original position
-      repeat: -1,    // Infinite loop
+      yoyo: true,
+      repeat: -1,
       ease: 'Sine.easeInOut',
     });
   }

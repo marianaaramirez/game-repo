@@ -20,15 +20,20 @@ import StatsScene from './scenes/StatsScene.js';
 
 const config = {
   type: Phaser.AUTO,
+  // Internal game resolution. The canvas is rendered at this size; CSS
+  // scales it to fit the window while preserving the 4:3 aspect ratio.
   width: 800,
   height: 600,
   backgroundColor: '#1a1a2e',
-  parent: document.body,
-  // Enable DOM overlay (HTML inputs in LoginScene)
-  dom: { createContainer: true },
+  parent: 'game-container',
+  // DOM container removed — LoginScene uses Phaser-native inputs.
+  // It created a position:absolute wrapper that broke flex centering.
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    expandParent: false, // do NOT inflate the parent — keep CSS in control
+    min: { width: 320, height: 240 },
+    max: { width: 1920, height: 1440 },
   },
   // Scene order — LoginScene loads first; it routes to HomeScene after auth (or skip)
   scene: [
