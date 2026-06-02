@@ -154,7 +154,7 @@ You can also click **SKIP (offline)** to play without backend tracking.
 | `npm run migrate` | Run schema + seeds + pending migrations |
 | `npm run migrate:fresh` | Drop database, then run everything |
 | `npm run migrate:bootstrap` | Mark all migrations as applied without running them (use only if DB was set up manually) |
-| `npm run test:api` | Run the API integration test suite (71 tests) |
+| `npm run test:api` | Run the API integration test suite (86 tests) |
 
 ---
 
@@ -187,7 +187,7 @@ game-repo/
 ├── src/                       # Frontend (Phaser)
 │   ├── main.js                # Entry point — Phaser config + scene registration
 │   ├── api.js                 # Backend API client (fetch wrapper)
-│   ├── scenes/                # All game screens (10 scenes)
+│   ├── scenes/                # All game screens (13 scenes)
 │   ├── systems/               # Combat, Math, Map, Timer logic
 │   ├── entities/              # Player + Enemy classes
 │   │   └── enemies/           # Individual enemy implementations
@@ -210,13 +210,15 @@ game-repo/
 │       ├── stats.js           # /stats /leaderboard
 │       ├── skillDeck.js       # Skill card persistence
 │       ├── deck.js            # Attack/defense collection
-│       └── player.js          # Player profile (skin, cleared levels)
+│       ├── player.js          # Player profile (skin, cleared levels)
+│       └── save.js            # Pause / resume snapshots
 ├── database/
 │   ├── schemaV3.sql           # Latest schema definition
 │   ├── seeds.sql              # Static catalog (maps, enemies, cards)
 │   └── migrations/            # Versioned schema migrations
 │       ├── 001_deckcard_instance_pk.sql
-│       └── 002_deck_unique_player.sql
+│       ├── 002_deck_unique_player.sql
+│       └── 003_run_save.sql
 ├── tests/
 │   └── api.test.js            # Backend integration tests
 ├── package.json
@@ -228,12 +230,19 @@ game-repo/
 ## Game Flow
 
 ```
-LoginScene → HomeScene → CharSelectScene → InstructionsScene → LevelSelectScene
+LoginScene → HomeScene → CharSelectScene → LevelSelectScene
             ↓
             DeckBuildScene → MapScene ⇄ CombatScene → RewardScene → DeckBuildScene (loop)
 ```
 
-Auxiliary: `StatsScene` (from Home) shows per-player stats and the global leaderboard.
+From HomeScene, secondary screens (no progress required):
+
+- **InstructionsScene** — controls + game mechanics reference
+- **StatsScene** — personal aggregated stats + global leaderboard
+- **OptionsScene** — account info, progress controls (reset, wipe), about
+- **SavedGamesScene** — list of paused runs, resume mid-combat
+
+In-combat, the **PAUSE button** (bottom-left, disabled mid-problem) snapshots full state and returns to HomeScene. The saved run can be resumed later from LOAD GAME.
 
 ---
 
@@ -266,6 +275,10 @@ All endpoints are mounted under `/api`. Endpoints marked **AUTH** require an `Au
 | PUT | `/deck/cards/:id/active` | ✔ | Toggle is_active |
 | DELETE | `/deck` | ✔ | Wipe collection (roguelike death) |
 | GET | `/player/me/profile` | ✔ | Skin + cleared levels |
+| PUT | `/run/:id/save` | ✔ | Save run snapshot (pause) |
+| GET | `/run/:id/save` | ✔ | Load saved snapshot |
+| GET | `/saved-runs` | ✔ | List ongoing runs with saves |
+| DELETE | `/run/:id/save` | ✔ | Delete a save |
 
 ---
 
@@ -281,10 +294,11 @@ npm run server:dev
 npm run test:api
 ```
 
-Expected: **71 pass, 0 fail**. Tests create a unique throwaway user per run; clean up manually with:
+Expected: **86 pass, 0 fail**. Tests create a unique throwaway user per run; clean up manually with:
 
 ```sql
 DELETE FROM Player WHERE username LIKE 'testuser_%';
+DELETE FROM Player WHERE username LIKE 'intruder_%';
 ```
 
 ON DELETE CASCADE removes all related Run, Combat, ProblemStats, and DeckCard rows.
@@ -319,9 +333,14 @@ ON DELETE CASCADE removes all related Run, Combat, ProblemStats, and DeckCard ro
 - ✅ 5 skill cards as boss rewards (persist through defeats)
 - ✅ 6 basic enemies + 2 trap enemies + 3 bosses
 - ✅ Cross-session persistence (skill deck, regular deck, profile, run history)
+- ✅ Pause + resume — save mid-combat, continue exactly where you left off
+- ✅ Saved Games screen with resume / delete per save
 - ✅ Stats screen + global leaderboard
+- ✅ Options screen (account info, reset progress, wipe collection, about)
+- ✅ Instructions screen accessible from main menu
 - ✅ Back buttons + confirm dialogs + online/offline indicator
-- ✅ Full API integration test suite (71 tests)
+- ✅ Responsive layout with grid centering + high-DPI text rendering
+- ✅ Full API integration test suite (86 tests)
 
 ---
 
