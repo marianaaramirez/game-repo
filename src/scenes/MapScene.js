@@ -56,6 +56,22 @@ export default class MapScene extends Phaser.Scene {
     let map = this.registry.get('currentMap');
     if (!map || map.worldLevel !== this.worldLevel) {
       map = MapSystem.generateMap(this.worldLevel);
+
+      // If we are resuming a saved run, restore node-completion + currentNode
+      // onto the freshly-generated map (the layout is deterministic per world).
+      const saved = this.registry.get('savedMapState');
+      if (saved && this.registry.get('resumingRun')) {
+        const completedSet = new Set(saved.completedNodes || []);
+        map.nodes.forEach((n) => {
+          if (completedSet.has(n.id)) n.completed = true;
+        });
+        if (typeof saved.currentNode === 'number') {
+          map.currentNode = saved.currentNode;
+        }
+        this.registry.set('savedMapState', null);
+        this.registry.set('resumingRun',   false);
+      }
+
       this.registry.set('currentMap', map);
     }
 

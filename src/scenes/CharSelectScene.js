@@ -8,7 +8,7 @@
  * All skins share the same Player class (100 HP, 10 attack).
  *
  * Navigation:
- *   Click character → saves skinIndex to registry → InstructionsScene
+ *   Click character → saves skinIndex to registry → LevelSelectScene
  *   BACK            → HomeScene
  *
  * AI tool used for code commenting: Claude (Anthropic)
@@ -96,7 +96,7 @@ export default class CharSelectScene extends Phaser.Scene {
       // Click: save selection and advance to instructions
       hitArea.on('pointerdown', () => {
         this.registry.set('selectedSkin', i);
-        this.scene.start('InstructionsScene');
+        this.scene.start('LevelSelectScene');
       });
     });
 

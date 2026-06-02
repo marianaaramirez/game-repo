@@ -424,6 +424,125 @@ test('DELETE /skill-deck/equip — unequips all', async () => {
 });
 
 // ------------------------------------------------------------
+// PAUSE / RESUME — RunSave snapshots
+// ------------------------------------------------------------
+test('PUT /run/:id/save — requires auth', async () => {
+  const res = await http('PUT', `/run/${state.runID}/save`, { state: { foo: 1 } });
+  assert.equal(res.status, 401);
+});
+
+test('PUT /run/:id/save — rejects missing state', async () => {
+  const res = await http('PUT', `/run/${state.runID}/save`, {}, state.token);
+  assert.equal(res.status, 400);
+});
+
+test('PUT /run/:id/save — rejects non-numeric runID', async () => {
+  const res = await http('PUT', '/run/abc/save', { state: { x: 1 } }, state.token);
+  assert.equal(res.status, 400);
+});
+
+test('PUT /run/:id/save — rejects non-existent runID', async () => {
+  const res = await http('PUT', '/run/999999/save', { state: { x: 1 } }, state.token);
+  assert.equal(res.status, 404);
+});
+
+test('PUT /run/:id/save — saves a state snapshot', async () => {
+  const snapshot = {
+    world_level: 1,
+    enemies_defeated: 2,
+    duration_so_far: 90,
+    player: { hp: 80, maxHp: 100, level: 2, skinIndex: 1 },
+    map: { currentNode: 3, completedNodes: [0, 1] },
+  };
+  const res = await http('PUT', `/run/${state.runID}/save`, { state: snapshot }, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.saved, true);
+  assert.equal(res.data.runID, state.runID);
+});
+
+test('GET /run/:id/save — requires auth', async () => {
+  const res = await http('GET', `/run/${state.runID}/save`);
+  assert.equal(res.status, 401);
+});
+
+test('GET /run/:id/save — returns saved snapshot', async () => {
+  const res = await http('GET', `/run/${state.runID}/save`, null, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.runID, state.runID);
+  assert.ok(res.data.state);
+  assert.equal(res.data.state.enemies_defeated, 2);
+  assert.equal(res.data.state.player.hp, 80);
+  assert.deepEqual(res.data.state.map.completedNodes, [0, 1]);
+  assert.ok(res.data.saved_at);
+});
+
+test('PUT /run/:id/save — upsert overwrites existing save', async () => {
+  const newSnap = {
+    world_level: 1,
+    enemies_defeated: 4,
+    player: { hp: 50, maxHp: 100, level: 3, skinIndex: 1 },
+  };
+  await http('PUT', `/run/${state.runID}/save`, { state: newSnap }, state.token);
+  const res = await http('GET', `/run/${state.runID}/save`, null, state.token);
+  assert.equal(res.data.state.enemies_defeated, 4);
+  assert.equal(res.data.state.player.hp, 50);
+});
+
+test('GET /saved-runs — requires auth', async () => {
+  const res = await http('GET', '/saved-runs');
+  assert.equal(res.status, 401);
+});
+
+test('GET /saved-runs — lists ongoing runs with saves', async () => {
+  const res = await http('GET', '/saved-runs', null, state.token);
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.data));
+  const me = res.data.find((r) => r.runID === state.runID);
+  assert.ok(me, 'expected our test run in saved-runs');
+  assert.equal(me.world_level, 1);
+  assert.ok(me.saved_at);
+});
+
+test('GET /run/:id/save — non-owner gets 403', async () => {
+  // Register a second user to verify ownership check
+  const otherUser = `intruder_${Date.now()}`;
+  const reg = await http('POST', '/register', {
+    username: otherUser, password: 'pass1234',
+  });
+  const otherToken = reg.data.token;
+  const res = await http('GET', `/run/${state.runID}/save`, null, otherToken);
+  assert.equal(res.status, 403);
+  state.otherToken = otherToken;
+});
+
+test('DELETE /run/:id/save — requires auth', async () => {
+  const res = await http('DELETE', `/run/${state.runID}/save`);
+  assert.equal(res.status, 401);
+});
+
+test('DELETE /run/:id/save — non-owner gets 403', async () => {
+  const res = await http('DELETE', `/run/${state.runID}/save`, null, state.otherToken);
+  assert.equal(res.status, 403);
+});
+
+test('DELETE /run/:id/save — wipes the save', async () => {
+  const res = await http('DELETE', `/run/${state.runID}/save`, null, state.token);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.deleted, true);
+});
+
+test('GET /run/:id/save — 404 after delete', async () => {
+  const res = await http('GET', `/run/${state.runID}/save`, null, state.token);
+  assert.equal(res.status, 404);
+});
+
+test('GET /saved-runs — no longer includes our run', async () => {
+  const res = await http('GET', '/saved-runs', null, state.token);
+  const me = res.data.find((r) => r.runID === state.runID);
+  assert.equal(me, undefined);
+});
+
+// ------------------------------------------------------------
 // FINAL — finish run as win, verify stats update
 // ------------------------------------------------------------
 test('PUT /run/:id — marks run as won + sets duration', async () => {

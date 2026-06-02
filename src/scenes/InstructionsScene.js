@@ -21,7 +21,7 @@ export default class InstructionsScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     drawConnectionBadge(this);
-    drawBackButton(this, 'CharSelectScene');
+    drawBackButton(this, 'HomeScene');
 
     this.add.text(400, 40, 'HOW TO PLAY', {
       fontSize: '32px',
@@ -69,16 +69,9 @@ export default class InstructionsScene extends Phaser.Scene {
       yPos += section.text.split('\n').length * 20 + 15;
     });
 
-    // Start button — goes to the level-select screen
-    const playBg = this.add.rectangle(400, 550, 200, 50, 0x44aa44, 0.9)
-      .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0x66ff66);
-    this.add.text(400, 550, 'START ADVENTURE', {
-      fontSize: '18px', fontFamily: 'Arial Black', color: '#ffffff',
+    // Hint at the bottom — user uses the BACK button (top-left) to return
+    this.add.text(400, 565, 'Click BACK to return to the menu', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#888899',
     }).setOrigin(0.5);
-
-    playBg.on('pointerdown', () => {
-      this.scene.start('LevelSelectScene');
-    });
   }
 }

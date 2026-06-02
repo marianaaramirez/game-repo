@@ -2,22 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a1a2e" />
   <title>Math Smash: Card Adventure</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #0a0a1a;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
+    *,
+    *::before,
+    *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
       overflow: hidden;
     }
-    canvas { display: block; }
+
+    body {
+      background: radial-gradient(circle at center, #1a1a2e 0%, #0a0a1a 100%);
+      font-family: 'Arial Black', Arial, sans-serif;
+      color: #ffffff;
+      min-height: 100vh;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      touch-action: manipulation;
+    }
+
+    /* Grid centering — bulletproof: works regardless of canvas size. */
+    #game-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    /* OVERRIDE Phaser's automatic margins so CSS centering takes precedence.
+       Phaser still sets canvas pixel size for FIT scaling, but margin/position
+       overrides put the canvas back into the grid flow for true centering. */
+    #game-container canvas {
+      display: block;
+      margin: 0 !important;
+      padding: 0 !important;
+      position: static !important;
+      box-shadow: 0 6px 32px rgba(0, 0, 0, 0.6);
+      border-radius: 6px;
+      /* Smooth rendering for text. DO NOT use crisp-edges / pixelated here —
+         those force nearest-neighbor scaling which makes text blurry/jagged. */
+      image-rendering: auto;
+    }
   </style>
 </head>
 <body>
+  <div id="game-container"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

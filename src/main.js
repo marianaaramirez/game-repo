@@ -17,18 +17,30 @@ import MapScene from './scenes/MapScene.js';
 import CombatScene from './scenes/CombatScene.js';
 import RewardScene from './scenes/RewardScene.js';
 import StatsScene from './scenes/StatsScene.js';
+import OptionsScene from './scenes/OptionsScene.js';
+import SavedGamesScene from './scenes/SavedGamesScene.js';
 
 const config = {
   type: Phaser.AUTO,
+  // Internal game resolution. The canvas is rendered at this size; CSS
+  // scales it to fit the window while preserving the 4:3 aspect ratio.
   width: 800,
   height: 600,
   backgroundColor: '#1a1a2e',
-  parent: document.body,
-  // Enable DOM overlay (HTML inputs in LoginScene)
-  dom: { createContainer: true },
+  parent: 'game-container',
+  // High-DPI rendering — multiplies internal pixel buffer by devicePixelRatio
+  // so text stays sharp on retina / 4K displays. Default 1 would render at
+  // 800x600 and let the browser upscale (blurry on hi-DPI).
+  resolution: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1,
+  // roundPixels false → text positions stay sub-pixel accurate (sharper edges)
+  roundPixels: false,
+  antialias: true,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    expandParent: false,
+    min: { width: 320, height: 240 },
+    max: { width: 1920, height: 1440 },
   },
   // Scene order — LoginScene loads first; it routes to HomeScene after auth (or skip)
   scene: [
@@ -42,6 +54,8 @@ const config = {
     CombatScene,
     RewardScene,
     StatsScene,
+    OptionsScene,
+    SavedGamesScene,
   ],
 };
 
