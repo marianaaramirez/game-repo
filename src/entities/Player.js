@@ -186,4 +186,13 @@ export default class Player extends BaseEntity {
   resetForCombat() {
     this.hp = this.maxHp;
   }
+
+  /**
+   * Resets per-level use counters on every card the player owns.
+   * Called when entering a new level (LevelSelectScene).
+   */
+  resetCardUses() {
+    this.collection.forEach((c) => c.resetUses && c.resetUses());
+    this.skillCards.forEach((c) => c.resetUses && c.resetUses());
+  }
 }

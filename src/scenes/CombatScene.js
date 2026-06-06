@@ -240,7 +240,10 @@ export default class CombatScene extends Phaser.Scene {
       const y = 490;
 
       // Gray out cards affected by enemy skills (spider web, card thief)
+      // OR cards that have run out of uses for this level
+      const isDepleted = card.isDepleted && card.isDepleted();
       const isDisabled = card.disabled
+        || isDepleted
         || i === this.combatContext.disabledCardIndex
         || i === this.combatContext.lockedCardIndex;
 
@@ -267,6 +270,17 @@ export default class CombatScene extends Phaser.Scene {
       if (card.baseValue > 0) {
         this.add.text(x, y + 15, `${card.baseValue}`, {
           fontSize: '18px', fontFamily: 'Arial Black', color: '#ffdd88',
+        }).setOrigin(0.5);
+      }
+
+      // Per-level uses counter (X/Y). Red when depleted.
+      if (card.maxUsesPerLevel) {
+        const usesColor = isDepleted ? '#ff4444'
+          : card.usesRemaining === 1 ? '#ffaa00'
+          : '#88ff88';
+        this.add.text(x, y + 42, `${card.usesRemaining}/${card.maxUsesPerLevel}`, {
+          fontSize: '11px', fontFamily: 'Arial Black', color: usesColor,
+          backgroundColor: '#00000099', padding: { x: 4, y: 1 },
         }).setOrigin(0.5);
       }
 
@@ -306,6 +320,7 @@ export default class CombatScene extends Phaser.Scene {
     // Skill cards: apply effect immediately, then pass turn to the enemy
     if (card.type === CARD_TYPES.SKILL) {
       this.trackCardUsed(card);
+      if (card.consumeUse) card.consumeUse();
       // Lock state + cards so user can't fire another action during the 1.5s delay
       this.combatState = CombatSystem.COMBAT_STATE.EVALUATE;
       this.cardObjects.forEach((obj) => obj.disableInteractive());
@@ -347,6 +362,7 @@ export default class CombatScene extends Phaser.Scene {
         }
       }
       this.trackCardUsed(card);
+      if (card.consumeUse) card.consumeUse();
       const hpBefore   = this.enemy.hp;
       const cardResult = card.apply(this.player, this.enemy, effectValue, this.combatContext);
       this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
@@ -449,6 +465,7 @@ export default class CombatScene extends Phaser.Scene {
       }
 
       this.trackCardUsed(this.selectedCard);
+      if (this.selectedCard.consumeUse) this.selectedCard.consumeUse();
       const hpBefore   = this.enemy.hp;
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue, this.combatContext);
       this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);

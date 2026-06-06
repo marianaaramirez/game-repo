@@ -224,6 +224,13 @@ export default class DeckBuildScene extends Phaser.Scene {
         }).setOrigin(0.5);
       }
 
+      // Per-level use limit hint
+      if (card.maxUsesPerLevel) {
+        this.add.text(x, y + 22, `Uses: ${card.maxUsesPerLevel}/level`, {
+          fontSize: '9px', fontFamily: 'Arial', color: '#88ffaa',
+        }).setOrigin(0.5);
+      }
+
       // Card description
       this.add.text(x, y + 40, card.description, {
         fontSize: '9px', fontFamily: 'Arial', color: '#dddddd',
@@ -284,6 +291,12 @@ export default class DeckBuildScene extends Phaser.Scene {
         fontSize: '11px', fontFamily: 'Arial Black', color: '#ffdd88',
         wordWrap: { width: cardW - 10 }, align: 'center',
       }).setOrigin(0.5);
+
+      if (card.maxUsesPerLevel) {
+        this.add.text(x, y + 2, `Uses: ${card.maxUsesPerLevel}/level`, {
+          fontSize: '9px', fontFamily: 'Arial', color: '#88ffaa',
+        }).setOrigin(0.5);
+      }
 
       this.add.text(x, y + 18, card.description, {
         fontSize: '9px', fontFamily: 'Arial', color: '#dddddd',
