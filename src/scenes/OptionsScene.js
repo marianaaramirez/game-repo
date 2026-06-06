@@ -13,6 +13,7 @@
 
 import Phaser from 'phaser';
 import { drawConnectionBadge, drawBackButton, showConfirmDialog, showToast } from '../ui/uiHelpers.js';
+import { wipeDeck } from '../api.js';
 
 export default class OptionsScene extends Phaser.Scene {
   constructor() {
@@ -78,15 +79,20 @@ export default class OptionsScene extends Phaser.Scene {
         });
     });
 
-    // Wipe local collection (forces fresh starter deck next entry)
+    // Wipe collection — forces fresh starter deck (4 cards) on next entry.
+    // Also wipes DB so online mode doesn't rehydrate the full collection.
     this.makeActionButton(400, 345, 'WIPE LOCAL COLLECTION', 0xaa4444, () => {
       showConfirmDialog(this,
-        'Discard your current local collection and deck?',
-        () => {
+        'Discard your collection and reset deck to 4 starter cards?',
+        async () => {
           const player = this.registry.get('player');
           if (player) player.onDefeat();
           this.registry.set('currentMap', null);
-          showToast(this, 'Collection wiped', 'success');
+          // Also wipe backend so DeckBuildScene rebuilds starter on next entry
+          if (this.registry.get('authMode') === 'online') {
+            await wipeDeck();
+          }
+          showToast(this, 'Collection wiped — starter deck restored', 'success');
           this.scene.restart();
         });
     });
