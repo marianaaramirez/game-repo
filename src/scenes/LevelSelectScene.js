@@ -90,6 +90,10 @@ export default class LevelSelectScene extends Phaser.Scene {
         this.registry.set('runStartTime', Date.now());
         this.registry.set('runEnemiesDefeated', 0);
 
+        // Reset per-level card uses (3 for attack/defense, 2 for skill)
+        const player = this.registry.get('player');
+        if (player && player.resetCardUses) player.resetCardUses();
+
         if (this.registry.get('authMode') === 'online') {
           const loader = showLoading(this, 'Starting run');
           const skin   = this.registry.get('selectedSkin') || 0;

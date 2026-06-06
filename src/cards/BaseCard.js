@@ -33,6 +33,34 @@ export default class BaseCard {
     this.description = description;
     this.disabled = false;
     this.locked = false;
+    // Per-level use limit: 3 for attack/defense, overridden to 2 in SkillCard subclasses.
+    // Reset by Player.resetCardUses() when entering a new level (LevelSelectScene).
+    this.maxUsesPerLevel = 3;
+    this.usesRemaining   = 3;
+  }
+
+  /**
+   * Resets the card back to its full per-level use count.
+   * Called when the player enters a new level.
+   */
+  resetUses() {
+    this.usesRemaining = this.maxUsesPerLevel;
+  }
+
+  /**
+   * Consumes one use. Returns true if the card still has uses left AFTER consumption.
+   * Cards at 0 remaining are filtered out of selectable hand by CombatScene.
+   */
+  consumeUse() {
+    if (this.usesRemaining > 0) this.usesRemaining -= 1;
+    return this.usesRemaining > 0;
+  }
+
+  /**
+   * Returns true if the card is depleted for this level.
+   */
+  isDepleted() {
+    return this.usesRemaining <= 0;
   }
   /** 
    * Applies the card's effect during combat.
