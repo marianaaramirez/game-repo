@@ -226,7 +226,7 @@ export default class DeckBuildScene extends Phaser.Scene {
 
       // Per-level use limit hint
       if (card.maxUsesPerLevel) {
-        this.add.text(x, y + 22, `Uses: ${card.maxUsesPerLevel}/level`, {
+        this.add.text(x, y + 22, `Uses: ${card.maxUsesPerLevel}/combat`, {
           fontSize: '9px', fontFamily: 'Arial', color: '#88ffaa',
         }).setOrigin(0.5);
       }
@@ -293,7 +293,7 @@ export default class DeckBuildScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       if (card.maxUsesPerLevel) {
-        this.add.text(x, y + 2, `Uses: ${card.maxUsesPerLevel}/level`, {
+        this.add.text(x, y + 2, `Uses: ${card.maxUsesPerLevel}/combat`, {
           fontSize: '9px', fontFamily: 'Arial', color: '#88ffaa',
         }).setOrigin(0.5);
       }

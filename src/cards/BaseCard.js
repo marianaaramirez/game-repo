@@ -33,15 +33,15 @@ export default class BaseCard {
     this.description = description;
     this.disabled = false;
     this.locked = false;
-    // Per-level use limit: 3 for attack/defense, overridden to 2 in SkillCard subclasses.
-    // Reset by Player.resetCardUses() when entering a new level (LevelSelectScene).
+    // Per-combat use limit: 3 for attack/defense, overridden to 2 in SkillCard subclasses.
+    // Reset by Player.resetCardUses() at the start of every CombatScene.
     this.maxUsesPerLevel = 3;
     this.usesRemaining   = 3;
   }
 
   /**
-   * Resets the card back to its full per-level use count.
-   * Called when the player enters a new level.
+   * Resets the card back to its full per-combat use count.
+   * Called at the start of every CombatScene.
    */
   resetUses() {
     this.usesRemaining = this.maxUsesPerLevel;

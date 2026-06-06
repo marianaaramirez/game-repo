@@ -58,6 +58,12 @@ export default class CombatScene extends Phaser.Scene {
     this.enemy  = this.registry.get('currentEnemy');
     this.isBoss = this.registry.get('isBoss') || false;
 
+    // Per-combat reset: every battle starts with full card uses (3 ATK/DEF, 2 skill).
+    // Skipped on combat restore (resumed saves preserve usesRemaining from snapshot).
+    if (!this.combatRestore && this.player.resetCardUses) {
+      this.player.resetCardUses();
+    }
+
     // --- Combat state ---
     this.combatState    = CombatSystem.COMBAT_STATE.SELECT_CARD;
     this.currentProblem = null;
