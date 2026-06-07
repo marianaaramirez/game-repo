@@ -16,7 +16,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class VampireKing extends BaseEnemy {
   constructor() {
-    super('Vampire King', 150, 12, 'Royal Command', 'Performs two actions in one turn');
+    super('Vampire King', 170, 12, 'Royal Command', 'Performs two actions in one turn');
     this.isBoss = true;    // Marks as boss for UI display (red BOSS label)
     this.color  = 0xcc0000; // Dark red
   }
