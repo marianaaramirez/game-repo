@@ -86,7 +86,7 @@ export default class OptionsScene extends Phaser.Scene {
         'Discard your collection and reset deck to 4 starter cards?',
         async () => {
           const player = this.registry.get('player');
-          if (player) player.onDefeat();
+          if (player) player.wipeCollection();
           this.registry.set('currentMap', null);
           // Also wipe backend so DeckBuildScene rebuilds starter on next entry
           if (this.registry.get('authMode') === 'online') {
