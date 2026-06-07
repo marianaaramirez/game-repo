@@ -1,57 +1,47 @@
 /**
- * LoginScene.js
- * Authentication screen with two modes: LOGIN and REGISTER.
- * Uses Phaser-native input boxes (rectangle + text + keyboard capture).
- * Avoids DOM elements that misalign with FIT scale mode.
+ * AdminLoginScene.js
+ * Administrator authentication screen. Mirrors LoginScene (LOGIN / REGISTER
+ * tabs, Phaser-native input boxes) but talks to the admin endpoints and routes
+ * to AdminMenuScene on success.
  *
  * Navigation:
- *   Login OK     → HomeScene
- *   Register OK  → HomeScene
- *   Skip button  → HomeScene (offline mode, no backend tracking)
+ *   Login OK     → AdminMenuScene
+ *   Register OK  → AdminMenuScene
+ *   BACK         → LoginScene
  */
 
 import Phaser from 'phaser';
-import { login, register, setToken, getToken, clearToken, getMe, bootstrapCatalog, getProfile } from '../api.js';
+import { adminLogin, adminRegister, setAdminToken, getAdminToken, clearAdminToken, adminGetMe } from '../api.js';
 
 const MIN_PASSWORD_LEN = 6;
 const INPUT_W          = 320;
 const INPUT_H          = 38;
 
-export default class LoginScene extends Phaser.Scene {
+export default class AdminLoginScene extends Phaser.Scene {
   constructor() {
-    super('LoginScene');
+    super('AdminLoginScene');
   }
 
-  /**
-   * init() runs on every scene start (including restart).
-   * Resets all form state so logout / re-entry never leaks credentials.
-   * `data.mode` is passed when switching tabs via scene.restart.
-   */
   init(data) {
-    this.mode         = (data && data.mode) || 'login';
-    this.username     = '';
-    this.password     = '';
-    this.focusedField = 'username';
+    this.mode          = (data && data.mode) || 'login';
+    this.username      = '';
+    this.password      = '';
+    this.focusedField  = 'username';
     this.cursorVisible = true;
   }
 
   async create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    this.cameras.main.setBackgroundColor('#0f1424');
 
-    // Auto-login if a valid token already exists in localStorage
-    if (getToken()) {
-      const me = await getMe();
+    // Auto-login if a valid admin token already exists
+    if (getAdminToken()) {
+      const me = await adminGetMe();
       if (me.ok) {
-        // Reuse the shared post-auth flow so catalog + profile load consistently
-        await this.completeAuth({
-          token:    getToken(),
-          playerID: me.data.playerID,
-          username: me.data.username,
-        });
+        this.registry.set('adminUsername', me.data.username);
+        this.scene.start('AdminMenuScene');
         return;
       }
-      // Token invalid/expired — purge it so we don't re-try on every refresh
-      clearToken();
+      clearAdminToken();
     }
 
     this.drawUI();
@@ -60,27 +50,31 @@ export default class LoginScene extends Phaser.Scene {
 
   drawUI() {
     // Title
-    this.add.text(400, 60, 'MATH SMASH', {
+    this.add.text(400, 60, 'ADMIN PANEL', {
       fontSize: '36px', fontFamily: 'Arial Black, Arial',
-      color: '#ffcc00', stroke: '#000', strokeThickness: 4,
+      color: '#66ccff', stroke: '#000', strokeThickness: 4,
+    }).setOrigin(0.5);
+
+    this.add.text(400, 96, 'Administrator access', {
+      fontSize: '13px', fontFamily: 'Arial', color: '#8899bb',
     }).setOrigin(0.5);
 
     // --- Mode tabs ---
     const loginActive = this.mode === 'login';
-    this.makeTab(310, 130, 'LOG IN',         loginActive  ? 0x44aa44 : 0x333344, () => this.switchMode('login'));
-    this.makeTab(490, 130, 'CREATE ACCOUNT', !loginActive ? 0x4466aa : 0x333344, () => this.switchMode('register'));
+    this.makeTab(310, 135, 'LOG IN',         loginActive  ? 0x3377cc : 0x333344, () => this.switchMode('login'));
+    this.makeTab(490, 135, 'CREATE ADMIN',   !loginActive ? 0x3377cc : 0x333344, () => this.switchMode('register'));
 
     // --- Username field ---
-    this.add.text(400, 185, 'Username', {
+    this.add.text(400, 188, 'Admin Username', {
       fontSize: '14px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
-    this.usernameBg = this.makeInputBox(400, 220, () => this.setFocus('username'));
-    this.usernameText = this.add.text(400 - INPUT_W / 2 + 10, 220, '', {
+    this.usernameBg = this.makeInputBox(400, 222, () => this.setFocus('username'));
+    this.usernameText = this.add.text(400 - INPUT_W / 2 + 10, 222, '', {
       fontSize: '17px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0, 0.5);
 
     // --- Password field ---
-    this.add.text(400, 265, 'Password', {
+    this.add.text(400, 267, 'Password', {
       fontSize: '14px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
     this.passwordBg = this.makeInputBox(400, 300, () => this.setFocus('password'));
@@ -88,7 +82,6 @@ export default class LoginScene extends Phaser.Scene {
       fontSize: '17px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0, 0.5);
 
-    // Hint
     this.add.text(400, 332, this.mode === 'register' ? `Minimum ${MIN_PASSWORD_LEN} characters` : '', {
       fontSize: '11px', fontFamily: 'Arial', color: '#888899',
     }).setOrigin(0.5);
@@ -99,9 +92,8 @@ export default class LoginScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Action button
-    const actionColor = this.mode === 'login' ? 0x44aa44 : 0x4466aa;
-    const actionLabel = this.mode === 'login' ? 'LOGIN'   : 'REGISTER';
-    const actionBg = this.add.rectangle(400, 410, 240, 46, actionColor, 0.95)
+    const actionLabel = this.mode === 'login' ? 'LOGIN' : 'CREATE ADMIN';
+    const actionBg = this.add.rectangle(400, 410, 240, 46, 0x3377cc, 0.95)
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0xffffff);
     this.add.text(400, 410, actionLabel, {
@@ -109,28 +101,16 @@ export default class LoginScene extends Phaser.Scene {
     }).setOrigin(0.5);
     actionBg.on('pointerdown', () => this.handleAction());
 
-    // Skip
-    const skipBg = this.add.rectangle(400, 475, 200, 36, 0x555566, 0.8)
+    // Back to player login
+    const backBg = this.add.rectangle(400, 475, 200, 36, 0x555566, 0.8)
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0x888899);
-    this.add.text(400, 475, 'SKIP (offline)', {
-      fontSize: '13px', fontFamily: 'Arial', color: '#ffffff',
+    this.add.text(400, 475, '< BACK TO PLAYER LOGIN', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
-    skipBg.on('pointerdown', () => this.skipAuth());
+    backBg.on('pointerdown', () => this.scene.start('LoginScene'));
 
-    // Admin Login — routes to the separate administrator auth flow
-    const adminBg = this.add.rectangle(400, 513, 200, 32, 0x224466, 0.9)
-      .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0x66ccff);
-    this.add.text(400, 513, 'ADMIN LOGIN', {
-      fontSize: '13px', fontFamily: 'Arial Black', color: '#aaddff',
-    }).setOrigin(0.5);
-    adminBg.on('pointerover', () => adminBg.setFillStyle(0x2a5588, 1));
-    adminBg.on('pointerout',  () => adminBg.setFillStyle(0x224466, 0.9));
-    adminBg.on('pointerdown', () => this.scene.start('AdminLoginScene'));
-
-    // Footer instruction
-    this.add.text(400, 555, 'Click a field to focus  -  Tab to switch  -  Enter to submit', {
+    this.add.text(400, 540, 'Click a field to focus  -  Tab to switch  -  Enter to submit', {
       fontSize: '11px', fontFamily: 'Arial', color: '#666677',
     }).setOrigin(0.5);
 
@@ -143,16 +123,16 @@ export default class LoginScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setStrokeStyle(2, 0xffffff);
     this.add.text(x, y, label, {
-      fontSize: '15px', fontFamily: 'Arial Black', color: '#ffffff',
+      fontSize: '14px', fontFamily: 'Arial Black', color: '#ffffff',
     }).setOrigin(0.5);
     bg.on('pointerdown', onClick);
     return bg;
   }
 
   makeInputBox(x, y, onClick) {
-    const bg = this.add.rectangle(x, y, INPUT_W, INPUT_H, 0x222244, 1)
+    const bg = this.add.rectangle(x, y, INPUT_W, INPUT_H, 0x1a2238, 1)
       .setInteractive({ useHandCursor: true })
-      .setStrokeStyle(2, 0x4466aa);
+      .setStrokeStyle(2, 0x3377cc);
     bg.on('pointerdown', onClick);
     return bg;
   }
@@ -163,8 +143,8 @@ export default class LoginScene extends Phaser.Scene {
   }
 
   refreshFocusBorders() {
-    const focusColor = 0xffcc00;
-    const idleColor  = 0x4466aa;
+    const focusColor = 0x66ccff;
+    const idleColor  = 0x3377cc;
     this.usernameBg.setStrokeStyle(2, this.focusedField === 'username' ? focusColor : idleColor);
     this.passwordBg.setStrokeStyle(2, this.focusedField === 'password' ? focusColor : idleColor);
   }
@@ -195,7 +175,6 @@ export default class LoginScene extends Phaser.Scene {
         this.refreshFieldText();
         return;
       }
-      // Accept printable characters only (length 1, not a control key)
       if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
         const max = this.focusedField === 'username' ? 50 : 64;
         if (this[this.focusedField].length < max) {
@@ -205,7 +184,6 @@ export default class LoginScene extends Phaser.Scene {
       }
     });
 
-    // Cursor blink — toggles cursorVisible every 500ms, delegates to refreshFieldText
     this.cursorVisible = true;
     this.time.addEvent({
       delay: 500,
@@ -219,7 +197,6 @@ export default class LoginScene extends Phaser.Scene {
 
   switchMode(newMode) {
     if (this.mode === newMode) return;
-    // Pass mode via restart data so init() picks it up; resets username/password too
     this.scene.restart({ mode: newMode });
   }
 
@@ -228,29 +205,10 @@ export default class LoginScene extends Phaser.Scene {
     else                       this.handleRegister();
   }
 
-  /**
-   * Shared post-auth setup: stores credentials, fetches catalog + profile,
-   * populates registry with persistent player state, then navigates to HomeScene.
-   */
-  async completeAuth(authData) {
-    setToken(authData.token);
-    this.registry.set('playerID', authData.playerID);
-    this.registry.set('username', authData.username);
-    this.registry.set('authMode', 'online');
-
-    // Load catalog and profile in parallel
-    const [, profileRes] = await Promise.all([
-      bootstrapCatalog(),
-      getProfile(),
-    ]);
-
-    // Restore persistent player state from profile
-    if (profileRes.ok) {
-      this.registry.set('selectedSkin',  profileRes.data.lastSkin || 0);
-      this.registry.set('clearedLevels', profileRes.data.clearedLevels || []);
-    }
-
-    this.scene.start('HomeScene');
+  completeAuth(authData) {
+    setAdminToken(authData.token);
+    this.registry.set('adminUsername', authData.username);
+    this.scene.start('AdminMenuScene');
   }
 
   async handleLogin() {
@@ -259,12 +217,12 @@ export default class LoginScene extends Phaser.Scene {
       return;
     }
     this.statusText.setColor('#aaaaaa').setText('Logging in...');
-    const res = await login(this.username, this.password);
+    const res = await adminLogin(this.username, this.password);
     if (!res.ok) {
       this.statusText.setColor('#ff6666').setText(res.error || 'Login failed');
       return;
     }
-    await this.completeAuth(res.data);
+    this.completeAuth(res.data);
   }
 
   async handleRegister() {
@@ -280,17 +238,12 @@ export default class LoginScene extends Phaser.Scene {
       this.statusText.setColor('#ff6666').setText(`Password must be at least ${MIN_PASSWORD_LEN} characters`);
       return;
     }
-    this.statusText.setColor('#aaaaaa').setText('Creating account...');
-    const res = await register(this.username, this.password);
+    this.statusText.setColor('#aaaaaa').setText('Creating admin...');
+    const res = await adminRegister(this.username, this.password);
     if (!res.ok) {
       this.statusText.setColor('#ff6666').setText(res.error || 'Register failed');
       return;
     }
-    await this.completeAuth(res.data);
-  }
-
-  skipAuth() {
-    this.registry.set('authMode', 'offline');
-    this.scene.start('HomeScene');
+    this.completeAuth(res.data);
   }
 }

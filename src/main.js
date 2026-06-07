@@ -19,6 +19,9 @@ import RewardScene from './scenes/RewardScene.js';
 import StatsScene from './scenes/StatsScene.js';
 import OptionsScene from './scenes/OptionsScene.js';
 import SavedGamesScene from './scenes/SavedGamesScene.js';
+import AdminLoginScene from './scenes/AdminLoginScene.js';
+import AdminMenuScene from './scenes/AdminMenuScene.js';
+import AdminPlayerStatsScene from './scenes/AdminPlayerStatsScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -56,6 +59,9 @@ const config = {
     StatsScene,
     OptionsScene,
     SavedGamesScene,
+    AdminLoginScene,
+    AdminMenuScene,
+    AdminPlayerStatsScene,
   ],
 };
 
