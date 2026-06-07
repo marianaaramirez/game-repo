@@ -122,7 +122,7 @@ export default class CombatScene extends Phaser.Scene {
     this.forfeitButton = drawBackButton(this, 'LevelSelectScene', {
       x: 740, y: 580,
       label: 'FORFEIT',
-      confirmMessage: 'Forfeit combat? Your run ends and your collection is wiped.',
+      confirmMessage: 'Forfeit combat? Your run ends. Collection preserved.',
       onBeforeNavigate: () => this.forfeitCombat(),
     });
 
@@ -776,9 +776,9 @@ export default class CombatScene extends Phaser.Scene {
         duration: this.computeRunDuration(),
       });
     }
-    // Roguelike: wipe attack/defense collection (skill cards stay)
+    // Delete any pending save slot (run is over). Collection NOT wiped here —
+    // wipe only happens via Options menu.
     if (this.registry.get('authMode') === 'online') {
-      wipeDeck();
       const runID = this.registry.get('runID');
       if (runID) deleteRunSave(runID);
     }
@@ -787,7 +787,7 @@ export default class CombatScene extends Phaser.Scene {
     this.problemText.setText('You have been defeated!').setColor('#ff4444');
 
     this.time.delayedCall(2500, () => {
-      this.player.onDefeat();              // Wipe deck, preserve skill cards
+      this.player.onDefeat();              // HP/level reset, cards preserved
       this.registry.set('currentMap', null); // Force new map on next run
       this.scene.start('HomeScene');
     });
@@ -951,7 +951,7 @@ export default class CombatScene extends Phaser.Scene {
       if (runID) {
         updateRun(runID, { result: 'lose', duration: this.computeRunDuration() });
       }
-      wipeDeck();
+      // Collection NOT wiped — preserved unless user clicks Options wipe button.
     }
   }
 

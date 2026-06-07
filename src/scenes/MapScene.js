@@ -48,7 +48,7 @@ export default class MapScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(colors.bg);
     drawConnectionBadge(this);
     drawBackButton(this, 'LevelSelectScene', {
-      confirmMessage: 'Abandon this run? Your collection will be wiped.',
+      confirmMessage: 'Abandon this run? Your collection is preserved.',
       onBeforeNavigate: () => this.abandonRun(),
     });
 
@@ -258,13 +258,12 @@ export default class MapScene extends Phaser.Scene {
   }
 
   /**
-   * Marks the run as a loss on the backend, wipes the player's local + DB collection,
-   * and clears the map so a fresh one is generated next time.
-   * Skill cards persist (roguelike rule).
+   * Marks the run as a loss on the backend and clears the map so a fresh one
+   * is generated next time. Collection PRESERVED — wipe only via Options menu.
    */
   abandonRun() {
     const player = this.registry.get('player');
-    if (player) player.onDefeat();
+    if (player) player.onDefeat(); // HP/level reset only, cards untouched
     this.registry.set('currentMap', null);
 
     if (this.registry.get('authMode') === 'online') {
@@ -272,7 +271,7 @@ export default class MapScene extends Phaser.Scene {
       if (runID) {
         updateRun(runID, { result: 'lose', duration: this.computeRunDuration() });
       }
-      wipeDeck();
+      // Collection NOT wiped — preserved unless user clicks Options wipe button.
     }
   }
 
