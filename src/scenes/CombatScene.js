@@ -32,19 +32,70 @@ import { CARD_TYPES } from '../cards/BaseCard.js';
 import { postProblem, postCombat, updateRun, wipeDeck, saveRun, deleteRunSave, getEnemyIDByName, getCardIDByName } from '../api.js';
 import { drawBackButton, showConfirmDialog, showToast } from '../ui/uiHelpers.js';
 
+//For the sprites (vite needs to acces to every png):
+import warriorIdle from '../assets/warrior_Idle.png';
+import warriorAttack from '../assets/warrior_Attack.png';
+import warriorHurt from '../assets/warrior_Hurt.png';
+import warriorDeath from '../assets/warrior_Death.png';
+
+import mageIdle from '../assets/mage_Idle.png';
+import mageAttack from '../assets/mage_Attack.png';
+import mageHurt from '../assets/mage_Hurt.png';
+import mageDeath from '../assets/mage_Death.png';
+
+import rogueIdle from '../assets/rogue_Idle.png';
+import rogueAttack from '../assets/rogue_Attack.png';
+import rogueHurt from '../assets/rogue_Hurt.png';
+import rogueDeath from '../assets/rogue_Death.png';
+
+const SPRITES = {
+  warrior: {
+    Idle: warriorIdle,
+    Attack: warriorAttack,
+    Hurt: warriorHurt,
+    Death: warriorDeath
+  },
+  mage: {
+    Idle: mageIdle,
+    Attack: mageAttack,
+    Hurt: mageHurt,
+    Death: mageDeath
+  },
+  rogue: {
+    Idle: rogueIdle,
+    Attack: rogueAttack,
+    Hurt: rogueHurt,
+    Death: rogueDeath
+  }
+};
+
 export default class CombatScene extends Phaser.Scene {
   constructor() {
     super('CombatScene');
   }
 
+  preload() {
+    Object.entries(SPRITES).forEach(([skin, animations]) => {
+      Object.entries(animations).forEach(([anim, asset]) => {
+        this.load.spritesheet(
+          `${skin}_${anim}`,
+          asset,
+          {
+            frameWidth: 32,
+            frameHeight: 32
+          }
+        );
+      });
+    });
+  }
   /**
    * Receives context from the previous scene.
    * @param {{ worldLevel: number, trapChallenge?: boolean }} data
    */
   init(data) {
-    this.worldLevel    = data.worldLevel    || 1;
-    this.nodeIndex     = data.nodeIndex     || 0;
-    this.battleNumber  = data.battleNumber  || null;
+    this.worldLevel = data.worldLevel || 1;
+    this.nodeIndex = data.nodeIndex || 0;
+    this.battleNumber = data.battleNumber || null;
     this.trapChallenge = data.trapChallenge || false;
     // Optional combat-restore payload from SavedGamesScene
     this.combatRestore = data.combatRestore || null;
@@ -52,11 +103,14 @@ export default class CombatScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#0a0a1a');
-
     // Pull shared state from global registry
     this.player = this.registry.get('player');
-    this.enemy  = this.registry.get('currentEnemy');
+    this.enemy = this.registry.get('currentEnemy');
     this.isBoss = this.registry.get('isBoss') || false;
+
+    const skins = ['warrior', 'mage', 'rogue'];
+    this.skinKey = skins[this.player.skinIndex] || 'warrior';
+    this.createAnimations();
 
     // Per-combat reset: every battle starts with full card uses (3 ATK/DEF, 2 skill).
     // Skipped on combat restore (resumed saves preserve usesRemaining from snapshot).
@@ -65,15 +119,15 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     // --- Combat state ---
-    this.combatState    = CombatSystem.COMBAT_STATE.SELECT_CARD;
+    this.combatState = CombatSystem.COMBAT_STATE.SELECT_CARD;
     this.currentProblem = null;
     this.timerStartTime = 0;
     // Time allowed per problem — higher levels get more time (harder math)
     // Rogue passive adds extra time via player.timerBonus
-    this.timerDuration  = TimerSystem.getDuration(this.worldLevel) + (this.player.timerBonus || 0);
-    this.selectedCard   = null;
-    this.activeDefense  = 0;   // Defense value blocks enemy damage this turn
-    this.inputText      = '';  // Accumulates keyboard digits for the answer field
+    this.timerDuration = TimerSystem.getDuration(this.worldLevel) + (this.player.timerBonus || 0);
+    this.selectedCard = null;
+    this.activeDefense = 0;   // Defense value blocks enemy damage this turn
+    this.inputText = '';  // Accumulates keyboard digits for the answer field
 
     /**
      * combatContext — mutable object shared with enemy skill methods.
@@ -82,31 +136,31 @@ export default class CombatScene extends Phaser.Scene {
      */
     this.combatContext = {
       cardEffectivenessModifier: 1,    // Multiplier on card effect (Slime reduces this)
-      enemyDamageReduction:      0,    // Flat damage reduction for player (unused by default)
-      disabledCardIndex:        -1,    // Card index grayed out (Spider web trap)
-      lockedCardIndex:          -1,    // Card index locked (CardThief steal)
-      enemyStrikesFirst:       false,  // PredatorPlant quick strike
-      enemyDoubleAction:       false,  // VampireKing attacks twice
-      enemyDamageBoost:            1,  // Multiplier on enemy damage (BoneMage)
-      timerReduction:              0,  // Subtract ms from elapsed (EvilBat slows timer)
-      enemySkipAttack:         false,  // Titan charges — skip normal attack
-      swapRandomCard:          false,  // Swapper chaos — card gets randomized
-      secondChance:            false,  // SecondChance skill — allow one retry on wrong answer
-      rogueCounter:                0,  // Rogue passive — counts successful answers
+      enemyDamageReduction: 0,    // Flat damage reduction for player (unused by default)
+      disabledCardIndex: -1,    // Card index grayed out (Spider web trap)
+      lockedCardIndex: -1,    // Card index locked (CardThief steal)
+      enemyStrikesFirst: false,  // PredatorPlant quick strike
+      enemyDoubleAction: false,  // VampireKing attacks twice
+      enemyDamageBoost: 1,  // Multiplier on enemy damage (BoneMage)
+      timerReduction: 0,  // Subtract ms from elapsed (EvilBat slows timer)
+      enemySkipAttack: false,  // Titan charges — skip normal attack
+      swapRandomCard: false,  // Swapper chaos — card gets randomized
+      secondChance: false,  // SecondChance skill — allow one retry on wrong answer
+      rogueCounter: 0,  // Rogue passive — counts successful answers
       // --- Defense card special flags ---
-      playerRegen:                 0,  // Regen card — turns of HoT remaining
-      playerRegenAmount:           0,  // Regen card — HP per turn
-      tauntForceSkill:         false,  // Taunt card — 50% chance to force enemy skill this turn
-      evadeChance:                 0,  // Evade card — chance to dodge enemy attack this turn
-      barrierTurns:                0,  // Barrier card — extra enemy turns activeDefense persists
+      playerRegen: 0,  // Regen card — turns of HoT remaining
+      playerRegenAmount: 0,  // Regen card — HP per turn
+      tauntForceSkill: false,  // Taunt card — 50% chance to force enemy skill this turn
+      evadeChance: 0,  // Evade card — chance to dodge enemy attack this turn
+      barrierTurns: 0,  // Barrier card — extra enemy turns activeDefense persists
       playerDeck: this.player.getActiveDeck(),
     };
 
     // --- Backend tracking (separate from combatContext so it isn't reset by enemy turn) ---
     this.cardsUsedThisCombat = [];     // [{ cardID, turn_number }]
-    this.turnCount           = 1;
-    this.totalDamageDealt    = 0;
-    this.lastProblemID       = null;
+    this.turnCount = 1;
+    this.totalDamageDealt = 0;
+    this.lastProblemID = null;
 
     // If a combat-restore payload is present, override the freshly-built state.
     if (this.combatRestore) {
@@ -136,6 +190,61 @@ export default class CombatScene extends Phaser.Scene {
     }
   }
 
+  createAnimations() {
+    const skins = ['warrior', 'mage', 'rogue'];
+
+    skins.forEach((skin) => {
+
+      if (!this.anims.exists(`${skin}_Idle`)) {
+        this.anims.create({
+          key: `${skin}_Idle`,
+          frames: this.anims.generateFrameNumbers(`${skin}_Idle`, {
+            start: 0,
+            end: 3
+          }),
+          frameRate: 6,
+          repeat: -1
+        });
+      }
+
+      if (!this.anims.exists(`${skin}_Attack`)) {
+        this.anims.create({
+          key: `${skin}_Attack`,
+          frames: this.anims.generateFrameNumbers(`${skin}_Attack`, {
+            start: 0,
+            end: 3
+          }),
+          frameRate: 8,
+          repeat: 0
+        });
+      }
+
+      if (!this.anims.exists(`${skin}_Hurt`)) {
+        this.anims.create({
+          key: `${skin}_Hurt`,
+          frames: this.anims.generateFrameNumbers(`${skin}_Hurt`, {
+            start: 0,
+            end: 3
+          }),
+          frameRate: 8,
+          repeat: 0
+        });
+      }
+
+      if (!this.anims.exists(`${skin}_Death`)) {
+        this.anims.create({
+          key: `${skin}_Death`,
+          frames: this.anims.generateFrameNumbers(`${skin}_Death`, {
+            start: 0,
+            end: 7
+          }),
+          frameRate: 3,
+          repeat: 0
+        });
+      }
+
+    });
+  }
   /**
    * Renders all static UI elements: player/enemy sprites, HP bars, timer bar,
    * math problem area, answer input box, and message display.
@@ -146,18 +255,15 @@ export default class CombatScene extends Phaser.Scene {
       fontSize: '18px', fontFamily: 'Arial Black', color: '#44aaff',
     }).setOrigin(0.5);
 
-    // Map skin index to matching body color (mirrors CharSelectScene SKINS array)
-    const skinColors = [0x4488ff, 0xaa44ff, 0x44ff88];
-    const skinColor  = skinColors[this.player.skinIndex] || 0x4488ff;
+    const skinMap = ['warrior', 'mage', 'rogue'];
+    const key = skinMap[this.player.skinIndex] || 'warrior';
 
-    // Simple pixel-art figure: rectangle body + circle head + dot eyes
-    this.add.rectangle(120, 130, 60, 80, skinColor, 0.9).setStrokeStyle(2, 0xffffff);
-    this.add.circle(120, 75, 25, skinColor).setStrokeStyle(2, 0xffffff);
-    this.add.circle(113, 70, 3, 0xffffff);
-    this.add.circle(127, 70, 3, 0xffffff);
+    this.playerSprite = this.add.sprite(120, 120, `${this.skinKey}_Idle`);
+    this.playerSprite.setScale(4);
+    this.playerSprite.play(`${this.skinKey}_Idle`);
 
     // Player HP bar — background track + colored fill
-    this.playerHpBar  = this.add.rectangle(120, 190, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
+    this.playerHpBar = this.add.rectangle(120, 190, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
     this.playerHpFill = this.add.rectangle(
       120 - 70 + (this.player.getHpRatio() * 140) / 2,
       190,
@@ -189,7 +295,7 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     // Enemy HP bar
-    this.enemyHpBar  = this.add.rectangle(650, 190, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
+    this.enemyHpBar = this.add.rectangle(650, 190, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
     this.enemyHpFill = this.add.rectangle(
       650 - 70 + (this.enemy.getHpRatio() * 140) / 2,
       190,
@@ -207,7 +313,7 @@ export default class CombatScene extends Phaser.Scene {
     this.add.text(400, 225, 'TIMER', {
       fontSize: '12px', fontFamily: 'Arial', color: '#888888',
     }).setOrigin(0.5);
-    this.timerBarBg   = this.add.rectangle(400, 245, 500, 20, 0x333333).setStrokeStyle(1, 0x666666);
+    this.timerBarBg = this.add.rectangle(400, 245, 500, 20, 0x333333).setStrokeStyle(1, 0x666666);
     this.timerBarFill = this.add.rectangle(150, 245, 500, 18, 0x00ff00).setOrigin(0, 0.5);
     this.timerBarFill.setVisible(false);
 
@@ -237,9 +343,9 @@ export default class CombatScene extends Phaser.Scene {
    */
   drawCards() {
     this.cardObjects = [];
-    const deck    = this.combatContext.playerDeck;
+    const deck = this.combatContext.playerDeck;
     const cardWidth = 100;
-    const startX  = 400 - ((deck.length - 1) * (cardWidth + 10)) / 2;
+    const startX = 400 - ((deck.length - 1) * (cardWidth + 10)) / 2;
 
     deck.forEach((card, i) => {
       const x = startX + i * (cardWidth + 10);
@@ -260,7 +366,7 @@ export default class CombatScene extends Phaser.Scene {
       // Type badge (ATK / DEF / SKL)
       let typeLabel = 'ATK';
       if (card.type === CARD_TYPES.DEFENSE) typeLabel = 'DEF';
-      if (card.type === CARD_TYPES.SKILL)   typeLabel = 'SKL';
+      if (card.type === CARD_TYPES.SKILL) typeLabel = 'SKL';
 
       this.add.text(x, y - 45, typeLabel, {
         fontSize: '10px', fontFamily: 'Arial Black', color: '#ffffff',
@@ -283,7 +389,7 @@ export default class CombatScene extends Phaser.Scene {
       if (card.maxUsesPerLevel) {
         const usesColor = isDepleted ? '#ff4444'
           : card.usesRemaining === 1 ? '#ffaa00'
-          : '#88ff88';
+            : '#88ff88';
         this.add.text(x, y + 42, `${card.usesRemaining}/${card.maxUsesPerLevel}`, {
           fontSize: '11px', fontFamily: 'Arial Black', color: usesColor,
           backgroundColor: '#00000099', padding: { x: 4, y: 1 },
@@ -369,7 +475,7 @@ export default class CombatScene extends Phaser.Scene {
       }
       this.trackCardUsed(card);
       if (card.consumeUse) card.consumeUse();
-      const hpBefore   = this.enemy.hp;
+      const hpBefore = this.enemy.hp;
       const cardResult = card.apply(this.player, this.enemy, effectValue, this.combatContext);
       this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
@@ -383,7 +489,7 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     // Attack / Defense cards: generate a math problem and start the timer
-    this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
+    this.combatState = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
     this.updatePauseAvailability();
 
     // Lock all cards — no switching allowed once problem is shown
@@ -437,7 +543,7 @@ export default class CombatScene extends Phaser.Scene {
 
     // realElapsed = actual time the player took (used for analytics logging)
     // adjustedElapsed = realElapsed minus FreezeTime bonus (used for timer multiplier)
-    const realElapsed     = Date.now() - this.timerStartTime;
+    const realElapsed = Date.now() - this.timerStartTime;
     const adjustedElapsed = realElapsed + this.combatContext.timerReduction;
 
     const result = CombatSystem.evaluatePlayerAction(
@@ -472,8 +578,15 @@ export default class CombatScene extends Phaser.Scene {
 
       this.trackCardUsed(this.selectedCard);
       if (this.selectedCard.consumeUse) this.selectedCard.consumeUse();
-      const hpBefore   = this.enemy.hp;
+      const hpBefore = this.enemy.hp;
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue, this.combatContext);
+      if (this.selectedCard.type === CARD_TYPES.ATTACK) {
+        this.playerSprite.play(`${this.skinKey}_Attack`);
+
+        this.playerSprite.once('animationcomplete', () => {
+          this.playerSprite.play(`${this.skinKey}_Idle`);
+        });
+      }
       this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
@@ -504,7 +617,7 @@ export default class CombatScene extends Phaser.Scene {
 
     // Reset per-turn modifiers
     this.combatContext.cardEffectivenessModifier = 1;
-    this.combatContext.timerReduction            = 0;
+    this.combatContext.timerReduction = 0;
 
     // Hide input / timer UI
     this.inputBg.setVisible(false);
@@ -588,6 +701,13 @@ export default class CombatScene extends Phaser.Scene {
           msg += `\n${this.enemy.name} attacks for ${damage} damage!`;
         }
       }
+      if (!evaded) {
+        this.playerSprite.play(`${this.skinKey}_Hurt`);
+
+        this.playerSprite.once('animationcomplete', () => {
+          this.playerSprite.play(`${this.skinKey}_Idle`);
+        });
+      }
     } else {
       // Standard attack — spread a modified clone to pass boosted damage cleanly
       let damage = this.enemy.attackPower;
@@ -600,6 +720,13 @@ export default class CombatScene extends Phaser.Scene {
           this.player,
           this.activeDefense
         );
+        if (damage > this.activeDefense) {                    //testing
+          this.playerSprite.play(`${this.skinKey}_Hurt`);
+
+          this.playerSprite.once('animationcomplete', () => {
+            this.playerSprite.play(`${this.skinKey}_Idle`);
+          });
+        }
         msg = bleedMsg + `${this.enemy.name} attacks for ${damage} damage!`;
         if (this.activeDefense > 0) {
           msg += ` (Blocked ${this.activeDefense})`;
@@ -620,8 +747,8 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     // Reset turn-scoped context flags
-    this.combatContext.enemyDamageBoost  = 1;
-    this.combatContext.enemySkipAttack   = false;
+    this.combatContext.enemyDamageBoost = 1;
+    this.combatContext.enemySkipAttack = false;
     // Barrier card — keep activeDefense for one extra enemy turn
     if (this.combatContext.barrierTurns > 0) {
       this.combatContext.barrierTurns -= 1;
@@ -672,7 +799,7 @@ export default class CombatScene extends Phaser.Scene {
 
     // Reset per-turn modifiers
     this.combatContext.cardEffectivenessModifier = 1;
-    this.combatContext.timerReduction            = 0;
+    this.combatContext.timerReduction = 0;
 
     // Hide input / timer UI
     this.inputBg.setVisible(false);
@@ -689,12 +816,12 @@ export default class CombatScene extends Phaser.Scene {
    * Resets state for the next turn: clears card objects and redraws the hand.
    */
   startNewTurn() {
-    this.combatState  = CombatSystem.COMBAT_STATE.SELECT_CARD;
+    this.combatState = CombatSystem.COMBAT_STATE.SELECT_CARD;
     this.updatePauseAvailability();
     this.problemText.setText('Select a card');
     this.messageText.setText('');
     this.selectedCard = null;
-    this.turnCount   += 1;
+    this.turnCount += 1;
 
     // Regen card — apply HoT tick at the start of each new player turn
     if (this.combatContext.playerRegen > 0) {
@@ -740,7 +867,7 @@ export default class CombatScene extends Phaser.Scene {
     if (runID) {
       const fields = { enemies_defeated: newDefeated };
       if (this.isBoss) {
-        fields.result   = 'win';
+        fields.result = 'win';
         fields.duration = this.computeRunDuration();
       }
       updateRun(runID, fields);
@@ -753,7 +880,7 @@ export default class CombatScene extends Phaser.Scene {
       this.player.levelUp();
       this.scene.start('RewardScene', {
         worldLevel: this.worldLevel,
-        isBoss:     this.isBoss,
+        isBoss: this.isBoss,
         chestReward: false,
       });
     });
@@ -772,7 +899,7 @@ export default class CombatScene extends Phaser.Scene {
     const runID = this.registry.get('runID');
     if (runID) {
       updateRun(runID, {
-        result:   'lose',
+        result: 'lose',
         duration: this.computeRunDuration(),
       });
     }
@@ -784,6 +911,7 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     this.messageText.setText('DEFEAT...');
+    this.playerSprite.play(`${this.skinKey}_Death`);
     this.problemText.setText('You have been defeated!').setColor('#ff4444');
 
     this.time.delayedCall(2500, () => {
@@ -820,8 +948,8 @@ export default class CombatScene extends Phaser.Scene {
 
     // Apply timerReduction so FreezeTime slows the visual bar too
     const elapsed = Math.max(0, Date.now() - this.timerStartTime + this.combatContext.timerReduction);
-    const ratio   = TimerSystem.getRatio(elapsed, this.timerDuration);
-    const color   = TimerSystem.getZoneColor(elapsed, this.timerDuration);
+    const ratio = TimerSystem.getRatio(elapsed, this.timerDuration);
+    const color = TimerSystem.getZoneColor(elapsed, this.timerDuration);
 
     // Scale bar width and update color to reflect current time zone
     this.timerBarFill.setDisplaySize(ratio * 500, 18);
@@ -840,7 +968,7 @@ export default class CombatScene extends Phaser.Scene {
    * Solving correctly lets the player escape; timeout/wrong = no penalty (node already marked complete).
    */
   startTrapChallenge() {
-    this.combatState    = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
+    this.combatState = CombatSystem.COMBAT_STATE.MATH_PROBLEM;
     this.currentProblem = MathSystem.generate(this.worldLevel, this.nodeIndex, this.player.mathDifficultyOffset || 0, this.battleNumber);
     this.problemText.setText(`TRAP! Solve: ${this.currentProblem.text} = ?`);
     this.inputText = '';
@@ -848,7 +976,7 @@ export default class CombatScene extends Phaser.Scene {
     this.inputDisplay.setVisible(true).setText('_');
     this.timerStartTime = Date.now();
     this.timerBarFill.setVisible(true);
-    this.timerActive    = true;
+    this.timerActive = true;
     this.messageText.setText('Solve the problem to escape the trap!');
   }
 
@@ -879,15 +1007,15 @@ export default class CombatScene extends Phaser.Scene {
     const playerAnswer = parseInt(this.inputText, 10);
     const res = await postProblem({
       runID,
-      world_level:   this.worldLevel,
+      world_level: this.worldLevel,
       battle_number: this.battleNumber || 1,
-      difficulty:    `tier_${this.battleNumber || 1}`,
-      op_type:       this.currentProblem.operation,
-      expression:    this.currentProblem.text,
-      answer:        this.currentProblem.answer,
+      difficulty: `tier_${this.battleNumber || 1}`,
+      op_type: this.currentProblem.operation,
+      expression: this.currentProblem.text,
+      answer: this.currentProblem.answer,
       player_answer: isNaN(playerAnswer) ? null : playerAnswer,
       response_time: Math.round(elapsedMs),
-      is_correct:    !!isCorrect,
+      is_correct: !!isCorrect,
     });
     if (res.ok) {
       this.lastProblemID = res.data.problemID;
@@ -912,11 +1040,11 @@ export default class CombatScene extends Phaser.Scene {
     await postCombat({
       runID,
       enemyID,
-      problemID:     this.lastProblemID,
+      problemID: this.lastProblemID,
       timer_result,
-      damage_dealt:  Math.round(this.totalDamageDealt),
+      damage_dealt: Math.round(this.totalDamageDealt),
       combat_result: combatResult,
-      cards_used:    this.cardsUsedThisCombat,
+      cards_used: this.cardsUsedThisCombat,
     });
   }
 
@@ -937,7 +1065,7 @@ export default class CombatScene extends Phaser.Scene {
    */
   forfeitCombat() {
     if (this.combatState === CombatSystem.COMBAT_STATE.WIN ||
-        this.combatState === CombatSystem.COMBAT_STATE.LOSE) {
+      this.combatState === CombatSystem.COMBAT_STATE.LOSE) {
       return;
     }
     const player = this.registry.get('player');
@@ -985,7 +1113,7 @@ export default class CombatScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(1000);
 
     bg.on('pointerover', () => bg.setFillStyle(0x6688cc, 1));
-    bg.on('pointerout',  () => bg.setFillStyle(0x4466aa, 0.9));
+    bg.on('pointerout', () => bg.setFillStyle(0x4466aa, 0.9));
     bg.on('pointerdown', () => this.tryPause());
     return { bg, text };
   }
@@ -1031,52 +1159,52 @@ export default class CombatScene extends Phaser.Scene {
       return;
     }
     const player = this.registry.get('player');
-    const map    = this.registry.get('currentMap');
+    const map = this.registry.get('currentMap');
 
     const state = {
-      world_level:       this.worldLevel,
-      enemies_defeated:  this.registry.get('runEnemiesDefeated') || 0,
-      duration_so_far:   this.computeRunDuration(),
+      world_level: this.worldLevel,
+      enemies_defeated: this.registry.get('runEnemiesDefeated') || 0,
+      duration_so_far: this.computeRunDuration(),
       player: player ? {
-        hp:        player.hp,
-        maxHp:     player.maxHp,
-        level:     player.level,
+        hp: player.hp,
+        maxHp: player.maxHp,
+        level: player.level,
         skinIndex: player.skinIndex,
       } : null,
       map: map ? {
-        currentNode:    map.currentNode,
+        currentNode: map.currentNode,
         completedNodes: map.nodes.filter((n) => n.completed).map((n) => n.id),
       } : null,
       // Full combat snapshot — re-enter the SAME fight on resume.
       combat: {
-        enemyName:     this.enemy.name,
-        enemyHp:       this.enemy.hp,
-        enemyMaxHp:    this.enemy.maxHp,
-        enemyBleed:    this.enemy.bleed || 0,
+        enemyName: this.enemy.name,
+        enemyHp: this.enemy.hp,
+        enemyMaxHp: this.enemy.maxHp,
+        enemyBleed: this.enemy.bleed || 0,
         enemyBleedDmg: this.enemy.bleedDamage || 0,
-        isBoss:        this.isBoss,
-        nodeIndex:     this.nodeIndex,
-        battleNumber:  this.battleNumber,
-        turnCount:     this.turnCount,
+        isBoss: this.isBoss,
+        nodeIndex: this.nodeIndex,
+        battleNumber: this.battleNumber,
+        turnCount: this.turnCount,
         activeDefense: this.activeDefense,
         totalDamageDealt: this.totalDamageDealt,
         combatContext: {
           cardEffectivenessModifier: this.combatContext.cardEffectivenessModifier,
-          enemyDamageBoost:          this.combatContext.enemyDamageBoost,
-          timerReduction:            this.combatContext.timerReduction,
-          enemyDoubleAction:         this.combatContext.enemyDoubleAction,
-          enemySkipAttack:           this.combatContext.enemySkipAttack,
-          disabledCardIndex:         this.combatContext.disabledCardIndex,
-          lockedCardIndex:           this.combatContext.lockedCardIndex,
-          secondChance:              this.combatContext.secondChance,
-          clearMind:                 this.combatContext.clearMind,
-          doublePower:               this.combatContext.doublePower,
-          rogueCounter:              this.combatContext.rogueCounter,
-          playerRegen:               this.combatContext.playerRegen,
-          playerRegenAmount:         this.combatContext.playerRegenAmount,
-          tauntForceSkill:           this.combatContext.tauntForceSkill,
-          evadeChance:               this.combatContext.evadeChance,
-          barrierTurns:              this.combatContext.barrierTurns,
+          enemyDamageBoost: this.combatContext.enemyDamageBoost,
+          timerReduction: this.combatContext.timerReduction,
+          enemyDoubleAction: this.combatContext.enemyDoubleAction,
+          enemySkipAttack: this.combatContext.enemySkipAttack,
+          disabledCardIndex: this.combatContext.disabledCardIndex,
+          lockedCardIndex: this.combatContext.lockedCardIndex,
+          secondChance: this.combatContext.secondChance,
+          clearMind: this.combatContext.clearMind,
+          doublePower: this.combatContext.doublePower,
+          rogueCounter: this.combatContext.rogueCounter,
+          playerRegen: this.combatContext.playerRegen,
+          playerRegenAmount: this.combatContext.playerRegenAmount,
+          tauntForceSkill: this.combatContext.tauntForceSkill,
+          evadeChance: this.combatContext.evadeChance,
+          barrierTurns: this.combatContext.barrierTurns,
         },
       },
     };
@@ -1098,16 +1226,16 @@ export default class CombatScene extends Phaser.Scene {
   applyCombatRestore(snap) {
     // Enemy state
     if (this.enemy) {
-      this.enemy.hp          = snap.enemyHp;
-      this.enemy.maxHp       = snap.enemyMaxHp || this.enemy.maxHp;
+      this.enemy.hp = snap.enemyHp;
+      this.enemy.maxHp = snap.enemyMaxHp || this.enemy.maxHp;
       if (snap.enemyBleed) {
-        this.enemy.bleed       = snap.enemyBleed;
+        this.enemy.bleed = snap.enemyBleed;
         this.enemy.bleedDamage = snap.enemyBleedDmg;
       }
     }
     // Combat-scoped scalars
-    this.activeDefense    = snap.activeDefense    || 0;
-    this.turnCount        = snap.turnCount        || 1;
+    this.activeDefense = snap.activeDefense || 0;
+    this.turnCount = snap.turnCount || 1;
     this.totalDamageDealt = snap.totalDamageDealt || 0;
 
     // Merge restored combatContext into the freshly-built one

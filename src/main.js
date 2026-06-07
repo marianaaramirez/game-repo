@@ -25,6 +25,7 @@ import AdminPlayerStatsScene from './scenes/AdminPlayerStatsScene.js';
 
 const config = {
   type: Phaser.AUTO,
+  pixelArt: true,
   // Internal game resolution. The canvas is rendered at this size; CSS
   // scales it to fit the window while preserving the 4:3 aspect ratio.
   width: 800,

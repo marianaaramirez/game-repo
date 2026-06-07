@@ -16,9 +16,9 @@
 
 import Phaser from 'phaser';
 import { drawConnectionBadge } from '../ui/uiHelpers.js';
-import warriorImg from '../assets/Owlet_Monster.png';
-import mageImg from '../assets/Pink_Monster.png';
-import rogueImg from '../assets/Dude_Monster.png';
+import warriorImg from '../assets/warrior.png';
+import mageImg from '../assets/mage.png';
+import rogueImg from '../assets/rogue.png';
 
 // Skin definitions: name, color, and short description shown below character
 const SKINS = [
@@ -95,7 +95,7 @@ export default class CharSelectScene extends Phaser.Scene {
       hitArea.on('pointerover', () => {
         // body.setStrokeStyle(3, 0xffcc00);
         // head.setStrokeStyle(3, 0xffcc00);
-        character.setScale(4.2);
+        character.setScale(4.4);
       });
 
       // Un-hover: restore default outline (gold if persisted, white otherwise)
@@ -120,4 +120,5 @@ export default class CharSelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
     backBg.on('pointerdown', () => this.scene.start('HomeScene'));
   }
+  
 }
