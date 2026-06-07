@@ -16,18 +16,27 @@
 
 import Phaser from 'phaser';
 import { drawConnectionBadge } from '../ui/uiHelpers.js';
+import warriorImg from '../assets/Owlet_Monster.png';
+import mageImg from '../assets/Pink_Monster.png';
+import rogueImg from '../assets/Dude_Monster.png';
 
 // Skin definitions: name, color, and short description shown below character
 const SKINS = [
-  { name: 'Warrior', color: 0x4488ff, desc: '+3s on every timer' },
-  { name: 'Mage',    color: 0xaa44ff, desc: 'Easier math problems' },
-  { name: 'Rogue',   color: 0x44ff88, desc: 'Double effect every 2 answers' },
+  { name: 'Warrior', sprite: 'warrior', desc: '+3s on every timer' },
+  { name: 'Mage',    sprite: 'mage', desc: 'Easier math problems' },
+  { name: 'Rogue',   sprite: 'rogue', desc: 'Double effect every 2 answers' },
 ];
 
 export default class CharSelectScene extends Phaser.Scene {
   constructor() {
     super('CharSelectScene');
   }
+
+  preload() {
+  this.load.image('warrior', warriorImg);
+  this.load.image('mage', mageImg);
+  this.load.image('rogue', rogueImg);
+}
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
@@ -51,13 +60,13 @@ export default class CharSelectScene extends Phaser.Scene {
       const isLast      = (i === lastSkin);
       const defaultBorder = isLast ? 0xffcc00 : 0xffffff;
 
-      // Body rectangle
-      const body = this.add.rectangle(x, y, 80, 100, skin.color, 0.9)
-        .setStrokeStyle(3, defaultBorder);
-      // Head circle, positioned above the body
-      const head = this.add.circle(x, y - 70, 30, skin.color)
-        .setStrokeStyle(3, defaultBorder);
-
+      // // Body rectangle
+      // const body = this.add.rectangle(x, y, 80, 100, skin.color, 0.9)
+      //   .setStrokeStyle(3, defaultBorder);
+      // // Head circle, positioned above the body
+      // const head = this.add.circle(x, y - 70, 30, skin.color)
+      //   .setStrokeStyle(3, defaultBorder);
+      const character = this.add.image(x, y + 30, skin.sprite).setScale(4).setOrigin(0.5, 1);
       // "LAST USED" tag on the persisted choice
       if (isLast) {
         this.add.text(x, y - 130, 'LAST USED', {
@@ -65,9 +74,9 @@ export default class CharSelectScene extends Phaser.Scene {
           backgroundColor: '#ffcc00', padding: { x: 5, y: 2 },
         }).setOrigin(0.5);
       }
-      // Eyes (two small white circles)
-      this.add.circle(x - 10, y - 75, 4, 0xffffff);
-      this.add.circle(x + 10, y - 75, 4, 0xffffff);
+      // // Eyes (two small white circles)
+      // this.add.circle(x - 10, y - 75, 4, 0xffffff);
+      // this.add.circle(x + 10, y - 75, 4, 0xffffff);
 
       // Character name and description labels      
       this.add.text(x, y + 75, skin.name, {
@@ -84,14 +93,16 @@ export default class CharSelectScene extends Phaser.Scene {
 
       // Hover: highlight outline in gold
       hitArea.on('pointerover', () => {
-        body.setStrokeStyle(3, 0xffcc00);
-        head.setStrokeStyle(3, 0xffcc00);
+        // body.setStrokeStyle(3, 0xffcc00);
+        // head.setStrokeStyle(3, 0xffcc00);
+        character.setScale(4.2);
       });
 
       // Un-hover: restore default outline (gold if persisted, white otherwise)
       hitArea.on('pointerout', () => {
-        body.setStrokeStyle(3, defaultBorder);
-        head.setStrokeStyle(3, defaultBorder);
+        // body.setStrokeStyle(3, defaultBorder);
+        // head.setStrokeStyle(3, defaultBorder);
+        character.setScale(4);
       });
       // Click: save selection and advance to instructions
       hitArea.on('pointerdown', () => {
