@@ -16,7 +16,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class Golem extends BaseEnemy {
   constructor() {
-    super('Golem', 120, 8, 'Stone Shield', 'Reduces incoming damage by 50% for one turn');
+    super('Golem', 120, 9, 'Stone Shield', 'Reduces incoming damage by 50% for one turn');
     this.color       = 0x888888; // Gray
     this.shieldActive = false;   // True while Stone Shield is active
   }

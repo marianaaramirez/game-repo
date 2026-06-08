@@ -17,7 +17,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class PredatorPlant extends BaseEnemy {
   constructor() {
-    super('Predator Plant', 90, 9, 'Quick Strike', 'Attacks before the player if time is low');
+    super('Predator Plant', 90, 10, 'Quick Strike', 'Attacks before the player if time is low');
     this.color = 0x22aa22; // Dark green
   }
 
