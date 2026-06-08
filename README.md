@@ -13,7 +13,7 @@ Strategic roguelike deck-building game for children (ages 8–14) that combines 
 - **Frontend**: Phaser 3 + Vite (vanilla JavaScript, ES modules)
 - **Backend**: Node.js + Express
 - **Database**: MySQL 8.0+
-- **Auth**: JWT (jsonwebtoken) + bcrypt password hashing
+- **Auth**: JWT (jsonwebtoken) + bcrypt password hashing (separate flows for players and admins)
 - **Tests**: Node built-in test runner (`node:test`)
 
 ---
@@ -51,7 +51,10 @@ This installs both frontend (Phaser, Vite) and backend (Express, MySQL2, bcrypt,
 ### 2. Configure environment variables
 
 ```bash
-# Copy the template into a real .env (NOT committed)
+# Windows (CMD/PowerShell):
+copy server\.env.example server\.env
+
+# macOS/Linux:
 cp server/.env.example server/.env
 ```
 
@@ -75,7 +78,21 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 Copy the hex string into `JWT_SECRET=...` in the .env file.
 
-### 3. Set up the database
+### 3. Make sure MySQL is running
+
+MySQL Server must be active before proceeding.
+
+**Windows — check service:**
+```powershell
+Get-Service -Name MySQL*
+```
+If stopped: `Start-Service -Name MySQL80` (or open `services.msc` → MySQL → Start).
+
+**macOS:** `brew services start mysql`
+
+**Linux:** `sudo systemctl start mysql`
+
+### 4. Set up the database
 
 The migrate script creates the database, schema, seed data, and applies all migrations in order:
 
@@ -91,6 +108,8 @@ Expected output:
 [migrate] running seeds...
 [migrate] running migration 001_deckcard_instance_pk.sql...
 [migrate] running migration 002_deck_unique_player.sql...
+[migrate] running migration 003_run_save.sql...
+[migrate] running migration 004_admin.sql...
 [migrate] DONE
 ```
 
@@ -102,13 +121,28 @@ To start over with a clean database, use `npm run migrate:fresh` (drops the exis
 npm run migrate:bootstrap
 ```
 
-After bootstrap, `npm run migrate` becomes safe to re-run any time.
+### 5. (Optional) Load test player data
+
+To populate the database with sample players and gameplay data for testing stats and leaderboards:
+
+```bash
+mysql -u root -p mathsmash < database/seeds_test_players.sql
+```
+
+Or open `database/seeds_test_players.sql` in MySQL Workbench and execute. This creates 4 test players (password: `password123` for all):
+
+| Player | Wins | Style |
+|--------|------|-------|
+| DragonSlayer99 | 4 | Veteran, 100% accuracy |
+| MathWizard | 2 | Slow but accurate |
+| NoviceHero | 0 | Beginner, all losses |
+| SpeedRunner | 3 | Fast answers, mixed results |
 
 ---
 
 ## Running the App
 
-The project has TWO processes that must run together. Open two terminals.
+The project has **TWO processes** that must run together. Open two terminals.
 
 ### Terminal 1 — Backend API
 
@@ -122,6 +156,8 @@ Expected output:
 [server] listening on http://localhost:3000
 [db] connected to mathsmash as root
 ```
+
+Verify: open `http://localhost:3000/api/health` in browser → `{"status":"ok","service":"mathsmash-api"}`
 
 ### Terminal 2 — Frontend (Vite dev server)
 
@@ -137,7 +173,7 @@ Vite prints the local URL, usually `http://localhost:5173`. Open it in a browser
 2. Enter a username (3+ characters) and password (6+ characters).
 3. The game starts. Pick a character and play.
 
-You can also click **SKIP (offline)** to play without backend tracking.
+You can also click **SKIP (offline)** to play without backend tracking, or **ADMIN LOGIN** to access the administrator dashboard.
 
 ---
 
@@ -153,8 +189,280 @@ You can also click **SKIP (offline)** to play without backend tracking.
 | `npm run preview` | Preview the production build locally |
 | `npm run migrate` | Run schema + seeds + pending migrations |
 | `npm run migrate:fresh` | Drop database, then run everything |
-| `npm run migrate:bootstrap` | Mark all migrations as applied without running them (use only if DB was set up manually) |
-| `npm run test:api` | Run the API integration test suite (86 tests) |
+| `npm run migrate:bootstrap` | Mark all migrations as applied without running them |
+| `npm run test:api` | Run the API integration test suite |
+
+---
+
+## Game Flow
+
+### Player Flow
+
+```
+LoginScene → HomeScene → CharSelectScene → LevelSelectScene
+                ↓                                ↓
+          SavedGamesScene              DeckBuildScene → MapScene
+          InstructionsScene                              ↓
+          StatsScene                               CombatScene
+          OptionsScene                                   ↓
+                                                   RewardScene → DeckBuildScene (loop)
+                                                        ↓ (boss win)
+                                                   LevelSelectScene
+```
+
+### Admin Flow
+
+```
+LoginScene → "ADMIN LOGIN" → AdminLoginScene → AdminMenuScene
+                                                   ↓
+                                              6 report panels:
+                                              - Combats (wins/losses)
+                                              - Answers (correct/incorrect)
+                                              - Avg Time
+                                              - Enemy Balance
+                                              - Chest Balance
+                                              - Leaderboard → click player → AdminPlayerStatsScene
+```
+
+---
+
+## Game Mechanics
+
+### Characters (Skins)
+
+| Skin | Passive Ability |
+|------|----------------|
+| **Warrior** (blue) | +3 seconds on every math problem timer |
+| **Mage** (purple) | Math difficulty reduced by 2 tiers |
+| **Rogue** (green) | Every 2nd correct answer deals double effect |
+
+### Worlds & Math Difficulty
+
+| World | Name | Math Operations | Tiers |
+|-------|------|----------------|-------|
+| 1 | Ancient Temple | Addition & subtraction | 1-digit → 3-operand (40-80) |
+| 2 | Castle | Multiplication & division | 1-digit × 1-digit → 2-digit × 1-digit |
+| 3 | Wasteland | Mixed expressions (operator precedence) | `3 + 5 x 2` → `14 + 17 x 13` |
+
+Math difficulty scales per battle (tier 1–5), not per map node.
+
+### Combat System
+
+Turn-based loop: **SELECT CARD → MATH PROBLEM → EVALUATE → ENEMY TURN → repeat**
+
+- **Timer zones**: Green (>66% time) = 100% effect | Yellow (33-66%) = 75% | Red (<33%) = 50% | Timeout = 0%
+- **Card uses**: Attack/Defense cards have 3 uses per combat. Skill cards have 2 uses per combat. Resets each battle.
+- **Skill cards**: Activate immediately without a math problem. Obtained by defeating bosses. Persist through defeats.
+
+### Cards
+
+**Attack cards** (7 per world, 21 total):
+
+| Special | Effect |
+|---------|--------|
+| `none` | Plain damage |
+| `lifesteal` | Deals damage + heals player 50% |
+| `reckless` | High damage + 4 recoil to self |
+| `pierce` | Ignores Slime's effectiveness debuff |
+| `crit` | 25% chance for 2× damage |
+| `bleed` | Damage + DoT over 2-3 turns |
+
+**Defense cards** (9 per world, 27 total):
+
+| Special | Effect |
+|---------|--------|
+| `none` (×2) | Plain block |
+| `heal` | Block + heal 75% of block value |
+| `counter` | Block + reflect 50% back |
+| `reflect` | No block — reflects 100% at enemy |
+| `regen` | Block + HoT (3-6 HP × 2-3 turns) |
+| `taunt` | Block + 50% force enemy skill |
+| `evade` | Block + 30% dodge next attack |
+| `barrier` | Block + defense persists 1 extra turn |
+
+**Skill cards** (5 total, boss rewards):
+
+| Card | Effect | Uses/Combat |
+|------|--------|-------------|
+| Second Chance | Retry failed math problem | 2 |
+| Freeze Time | +4 seconds on timer | 2 |
+| Clear Mind | Next card activates without math | 2 |
+| Double Power | Next card effect ×2 | 2 |
+| Vitality Boost | Heal 10% max HP | 2 |
+
+### Enemies
+
+**Basic enemies** (6):
+
+| Enemy | HP | ATK | Skill |
+|-------|-----|-----|-------|
+| Slime | 80 | 6 | Reduces card effectiveness 10% |
+| Spider | 75 | 8 | Disables 1 random card |
+| Skeleton | 95 | 9 | 5 direct damage ignoring defense |
+| Golem | 120 | 9 | 50% damage reduction shield |
+| Predator Plant | 90 | 10 | Strikes first if player is slow |
+| Evil Bat | 70 | 7 | Reduces timer by 2 seconds |
+
+**Trap enemies** (2, from chest encounters):
+
+| Enemy | HP | ATK | Skill |
+|-------|-----|-----|-------|
+| Card Thief | 70 | 5 | Locks 1 card until correct answer |
+| Swapper | 70 | 5 | Replaces 1 card temporarily |
+
+**Bosses** (1 per world):
+
+| Boss | World | HP | ATK | Skill |
+|------|-------|----|-----|-------|
+| Vampire King | 1 | 170 | 14 | Double attack in one turn |
+| Bone Mage | 2 | 150 | 11 | 2× damage boost next attack |
+| Titan | 3 | 220 | 17 | 2-turn charge → 30 direct damage |
+
+### Roguelike Progression
+
+- **Win battle**: Level up (+10 max HP, full heal) + earn a card
+- **Win boss**: Earn a permanent skill card + level marked CLEARED
+- **Lose battle**: HP and level reset. **Cards are preserved** (wipe only via Options menu)
+- **Skill cards** persist through defeats permanently
+
+### Admin Dashboard
+
+Administrators have a separate login and see 6 global analytics panels:
+
+1. **Combats** — Total wins vs losses across all players
+2. **Answers** — Total correct vs incorrect answers
+3. **Avg Time** — Average math answer speed (all players)
+4. **Enemy Balance** — Apparition % of each enemy across all combats
+5. **Chest Balance** — Configured drop rates for chest outcomes
+6. **Leaderboard** — All players ranked by wins. Click a player to view their full stats (same layout as player's "My Stats")
+
+---
+
+## Project Structure
+
+```
+game-repo/
+├── src/                           # Frontend (Phaser)
+│   ├── main.js                    # Entry point — Phaser config + scene registration
+│   ├── api.js                     # Backend API client (player + admin tokens)
+│   ├── scenes/                    # All game screens (15 scenes)
+│   │   ├── LoginScene.js          # Player login/register + admin login button
+│   │   ├── HomeScene.js           # Main menu (Play, Load, Instructions, Stats, Options)
+│   │   ├── CharSelectScene.js     # Character skin selection (Warrior/Mage/Rogue)
+│   │   ├── InstructionsScene.js   # Game controls and mechanics reference
+│   │   ├── LevelSelectScene.js    # World selection (3 worlds)
+│   │   ├── DeckBuildScene.js      # Deck builder (max 4 cards + 1 skill)
+│   │   ├── MapScene.js            # Roguelike node map (Battle/Chest/Boss)
+│   │   ├── CombatScene.js         # Turn-based math combat
+│   │   ├── RewardScene.js         # Post-combat card/heal rewards
+│   │   ├── StatsScene.js          # Player stats + leaderboard
+│   │   ├── OptionsScene.js        # Settings, wipe collection, about
+│   │   ├── SavedGamesScene.js     # Pause/resume saved runs
+│   │   ├── AdminLoginScene.js     # Admin login/register
+│   │   ├── AdminMenuScene.js      # Admin dashboard (6 report panels)
+│   │   └── AdminPlayerStatsScene.js # Admin view of individual player stats
+│   ├── systems/                   # Game logic
+│   │   ├── CombatSystem.js        # Turn evaluation, win/lose checks
+│   │   ├── MathSystem.js          # Problem generation (3 worlds × 5 tiers)
+│   │   ├── MapSystem.js           # Map generation (hand-authored + procedural)
+│   │   └── TimerSystem.js         # Timer zones (green/yellow/red)
+│   ├── entities/                  # Game entities
+│   │   ├── BaseEntity.js          # Shared HP/damage logic
+│   │   ├── BaseEnemy.js           # Enemy base class (30% skill / 70% attack)
+│   │   ├── Player.js              # Player state, deck, collection, leveling
+│   │   └── enemies/               # 11 enemy implementations
+│   ├── cards/                     # Card system
+│   │   ├── BaseCard.js            # Base class (uses per combat, depleted checks)
+│   │   ├── AttackCard.js          # 6 attack specials × 3 worlds
+│   │   ├── DefenseCard.js         # 8 defense specials × 3 worlds
+│   │   ├── SkillCard.js           # 5 boss-reward skill cards
+│   │   └── CardFactory.js         # Starter deck + reward card generation
+│   └── ui/
+│       └── uiHelpers.js           # Shared UI (badge, loading, confirm, toast, back)
+├── server/                        # Backend (Express)
+│   ├── index.js                   # Express app entry (mounts all routes)
+│   ├── db.js                      # MySQL2 connection pool
+│   ├── migrate.js                 # DB setup / migration runner
+│   ├── .env                       # Environment variables (NOT committed)
+│   ├── .env.example               # Template for .env
+│   ├── middleware/
+│   │   ├── auth.js                # Player JWT verification
+│   │   └── adminAuth.js           # Admin JWT verification (role check)
+│   └── routes/
+│       ├── auth.js                # /register /login /me
+│       ├── admin.js               # /admin/register /admin/login /admin/stats /admin/players
+│       ├── run.js                 # Run CRUD (play session)
+│       ├── combat.js              # /combat /problem
+│       ├── catalog.js             # /cards /enemies /maps (public)
+│       ├── stats.js               # /stats /leaderboard + computePlayerStats()
+│       ├── skillDeck.js           # Skill card persistence
+│       ├── deck.js                # Attack/defense collection
+│       ├── player.js              # Player profile (skin, cleared levels)
+│       └── save.js                # Pause / resume snapshots
+├── database/
+│   ├── schemaV3.sql               # Database schema
+│   ├── seeds.sql                  # Static catalog (maps, enemies, cards)
+│   ├── seeds_test_players.sql     # Test data (4 sample players with stats)
+│   └── migrations/
+│       ├── 001_deckcard_instance_pk.sql
+│       ├── 002_deck_unique_player.sql
+│       ├── 003_run_save.sql
+│       └── 004_admin.sql          # Admin accounts table
+├── tests/
+│   └── api.test.js                # Backend integration tests
+├── index.html                     # HTML entry (Vite serves this)
+├── package.json
+├── vite.config.js
+└── .gitignore
+```
+
+---
+
+## API Endpoints
+
+All endpoints are mounted under `/api`.
+
+### Player Endpoints (AUTH = player JWT required)
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/register` | — | Create player account |
+| POST | `/login` | — | Get player JWT |
+| GET | `/me` | ✔ | Current player info |
+| GET | `/maps` | — | List worlds |
+| GET | `/cards` | — | Card catalog (`?world=1&type=attack`) |
+| GET | `/enemies` | — | Enemy catalog |
+| POST | `/run` | ✔ | Start a play session |
+| PUT | `/run/:id` | ✔ | Update run (result, duration) |
+| GET | `/run/:id` | ✔ | Get one run |
+| POST | `/problem` | ✔ | Log a math problem attempt |
+| POST | `/combat` | ✔ | Log a combat encounter |
+| GET | `/stats` | ✔ | Aggregated player stats |
+| GET | `/leaderboard` | — | Top 10 players |
+| GET | `/skill-deck` | ✔ | Owned skill cards |
+| POST | `/skill-deck` | ✔ | Unlock a skill card |
+| PUT | `/skill-deck/equip` | ✔ | Equip a skill card |
+| DELETE | `/skill-deck/equip` | — | Unequip all |
+| GET | `/deck` | ✔ | Owned attack/defense cards |
+| POST | `/deck/cards` | ✔ | Add card to collection |
+| PUT | `/deck/cards/:id/active` | ✔ | Toggle is_active |
+| DELETE | `/deck` | ✔ | Wipe collection |
+| GET | `/player/me/profile` | ✔ | Skin + cleared levels |
+| PUT | `/run/:id/save` | ✔ | Save run snapshot (pause) |
+| GET | `/run/:id/save` | ✔ | Load saved snapshot |
+| GET | `/saved-runs` | ✔ | List ongoing runs with saves |
+| DELETE | `/run/:id/save` | ✔ | Delete a save |
+
+### Admin Endpoints (AUTH = admin JWT required)
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/admin/register` | — | Create admin account |
+| POST | `/admin/login` | — | Get admin JWT |
+| GET | `/admin/me` | ✔ | Current admin info |
+| GET | `/admin/stats` | ✔ | Global analytics (combats, answers, avg time, enemy %, chest balance) |
+| GET | `/admin/players` | ✔ | Full player leaderboard (all players) |
+| GET | `/admin/player/:id/stats` | ✔ | Individual player stats (same format as /stats) |
 
 ---
 
@@ -180,111 +488,9 @@ The backend still needs to run separately (`npm run start`) to handle API calls.
 
 ---
 
-## Project Structure
-
-```
-game-repo/
-├── src/                       # Frontend (Phaser)
-│   ├── main.js                # Entry point — Phaser config + scene registration
-│   ├── api.js                 # Backend API client (fetch wrapper)
-│   ├── scenes/                # All game screens (13 scenes)
-│   ├── systems/               # Combat, Math, Map, Timer logic
-│   ├── entities/              # Player + Enemy classes
-│   │   └── enemies/           # Individual enemy implementations
-│   ├── cards/                 # Attack, Defense, Skill card classes
-│   └── ui/
-│       └── uiHelpers.js       # Shared UI (badge, loading, confirm, toast)
-├── server/                    # Backend (Express)
-│   ├── index.js               # Express app entry
-│   ├── db.js                  # MySQL2 pool
-│   ├── migrate.js             # DB setup / migration runner
-│   ├── .env                   # Environment variables (NOT committed)
-│   ├── .env.example           # Template for .env
-│   ├── middleware/
-│   │   └── auth.js            # JWT verification middleware
-│   └── routes/
-│       ├── auth.js            # /register /login /me
-│       ├── run.js             # Run CRUD (play session)
-│       ├── combat.js          # /combat /problem
-│       ├── catalog.js         # /cards /enemies /maps (public)
-│       ├── stats.js           # /stats /leaderboard
-│       ├── skillDeck.js       # Skill card persistence
-│       ├── deck.js            # Attack/defense collection
-│       ├── player.js          # Player profile (skin, cleared levels)
-│       └── save.js            # Pause / resume snapshots
-├── database/
-│   ├── schemaV3.sql           # Latest schema definition
-│   ├── seeds.sql              # Static catalog (maps, enemies, cards)
-│   └── migrations/            # Versioned schema migrations
-│       ├── 001_deckcard_instance_pk.sql
-│       ├── 002_deck_unique_player.sql
-│       └── 003_run_save.sql
-├── tests/
-│   └── api.test.js            # Backend integration tests
-├── package.json
-└── vite.config.js
-```
-
----
-
-## Game Flow
-
-```
-LoginScene → HomeScene → CharSelectScene → LevelSelectScene
-            ↓
-            DeckBuildScene → MapScene ⇄ CombatScene → RewardScene → DeckBuildScene (loop)
-```
-
-From HomeScene, secondary screens (no progress required):
-
-- **InstructionsScene** — controls + game mechanics reference
-- **StatsScene** — personal aggregated stats + global leaderboard
-- **OptionsScene** — account info, progress controls (reset, wipe), about
-- **SavedGamesScene** — list of paused runs, resume mid-combat
-
-In-combat, the **PAUSE button** (bottom-left, disabled mid-problem) snapshots full state and returns to HomeScene. The saved run can be resumed later from LOAD GAME.
-
----
-
-## API Endpoints
-
-All endpoints are mounted under `/api`. Endpoints marked **AUTH** require an `Authorization: Bearer <jwt>` header.
-
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| POST | `/register` | — | Create account |
-| POST | `/login` | — | Get JWT |
-| GET | `/me` | ✔ | Current player |
-| GET | `/maps` | — | List worlds |
-| GET | `/cards` | — | Card catalog (`?world=1&type=attack`) |
-| GET | `/enemies` | — | Enemy catalog |
-| POST | `/run` | ✔ | Start a play session |
-| PUT | `/run/:id` | ✔ | Update run (result, duration) |
-| GET | `/run/:id` | ✔ | Get one run |
-| GET | `/runs` | ✔ | List player's runs |
-| POST | `/problem` | ✔ | Log a math problem attempt |
-| POST | `/combat` | ✔ | Log a combat encounter |
-| GET | `/stats` | ✔ | Aggregated player stats |
-| GET | `/leaderboard` | — | Top 10 players |
-| GET | `/skill-deck` | ✔ | Owned skill cards |
-| POST | `/skill-deck` | ✔ | Unlock a skill card |
-| PUT | `/skill-deck/equip` | ✔ | Equip a skill card |
-| DELETE | `/skill-deck/equip` | — | Unequip all |
-| GET | `/deck` | ✔ | Owned attack/defense cards |
-| POST | `/deck/cards` | ✔ | Add card to collection |
-| PUT | `/deck/cards/:id/active` | ✔ | Toggle is_active |
-| DELETE | `/deck` | ✔ | Wipe collection (roguelike death) |
-| GET | `/player/me/profile` | ✔ | Skin + cleared levels |
-| PUT | `/run/:id/save` | ✔ | Save run snapshot (pause) |
-| GET | `/run/:id/save` | ✔ | Load saved snapshot |
-| GET | `/saved-runs` | ✔ | List ongoing runs with saves |
-| DELETE | `/run/:id/save` | ✔ | Delete a save |
-
----
-
 ## Testing
 
-The API has a full integration test suite that exercises every endpoint:
+The API has an integration test suite that exercises every endpoint:
 
 ```bash
 # Start the backend first
@@ -294,7 +500,7 @@ npm run server:dev
 npm run test:api
 ```
 
-Expected: **86 pass, 0 fail**. Tests create a unique throwaway user per run; clean up manually with:
+Tests create a unique throwaway user per run; clean up manually with:
 
 ```sql
 DELETE FROM Player WHERE username LIKE 'testuser_%';
@@ -310,46 +516,44 @@ ON DELETE CASCADE removes all related Run, Combat, ProblemStats, and DeckCard ro
 | Symptom | Fix |
 |---|---|
 | `EADDRINUSE :::3000` | Old backend still running. Kill it: `netstat -ano \| findstr :3000` then `taskkill /PID <pid> /F` |
-| `[db] connection failed` | Check `server/.env` credentials + MySQL service is running |
+| `[db] connection failed` | Check `server/.env` credentials + MySQL service is running (`Get-Service MySQL*` on Windows) |
+| `ENOENT server/.env` | Copy the template: `copy server\.env.example server\.env` |
+| `jwt malformed / invalid signature` | JWT_SECRET in .env is empty or changed. Generate a new one |
 | Frontend shows blank page | Backend not running, or `npm run dev` is on a different port — open Vite's reported URL |
-| Tests fail with 401 | Backend reset its JWT_SECRET — make sure server is up before running tests |
+| Port 3000 occupied | Change `PORT` in `server/.env` (e.g. `PORT=3001`) |
+| Port 5173 occupied | Vite auto-assigns the next available port |
 | Migration "duplicate key" error | Run `npm run migrate:fresh` to wipe and restart from scratch |
 | Cards/enemies missing in game | Re-run `npm run migrate` to apply the seed file |
+| Admin table missing | Run `npm run migrate` to apply migration 004 |
 
 ---
 
 ## Completed Functionality
 
-- ✅ Login / register / logout with JWT-based session
+- ✅ Login / register / logout with JWT-based session (players and admins)
 - ✅ Three character classes with passive abilities (Warrior, Mage, Rogue)
 - ✅ Level select screen (3 worlds, free selection, cleared levels persist per account)
-- ✅ Interactive deck builder (max 4 cards, deck persists across browser sessions)
+- ✅ Interactive deck builder (max 4 cards + 1 skill, deck persists across sessions)
 - ✅ Procedural map generation (Battle, Chest, Boss nodes)
 - ✅ World 1 hand-authored 9-node diamond layout
 - ✅ Turn-based combat with timer-based scoring (Green / Yellow / Red zones)
-- ✅ Progressive math difficulty per battle (5 tiers per world)
+- ✅ Progressive math difficulty per battle (5 tiers per world, 3 worlds)
 - ✅ 21 attack cards with 6 special mechanics (lifesteal, reckless, pierce, crit, bleed)
 - ✅ 27 defense cards with 8 special mechanics (heal, counter, reflect, regen, taunt, evade, barrier)
 - ✅ 5 skill cards as boss rewards (persist through defeats)
-- ✅ 6 basic enemies + 2 trap enemies + 3 bosses
+- ✅ 6 basic enemies + 2 trap enemies + 3 bosses (each with unique skills)
+- ✅ Card usage limits (3 per combat for ATK/DEF, 2 for skill cards)
 - ✅ Cross-session persistence (skill deck, regular deck, profile, run history)
 - ✅ Pause + resume — save mid-combat, continue exactly where you left off
 - ✅ Saved Games screen with resume / delete per save
-- ✅ Stats screen + global leaderboard
-- ✅ Options screen (account info, reset progress, wipe collection, about)
+- ✅ Stats screen + global leaderboard (top 10)
+- ✅ Admin dashboard with 6 analytics panels (combats, answers, avg time, enemy balance, chest balance, full leaderboard)
+- ✅ Admin can view any individual player's stats
+- ✅ Options screen (account info, wipe collection, about)
 - ✅ Instructions screen accessible from main menu
 - ✅ Back buttons + confirm dialogs + online/offline indicator
 - ✅ Responsive layout with grid centering + high-DPI text rendering
-- ✅ Full API integration test suite (86 tests)
-
----
-
-## In Development
-
-- 🔧 Sprite / pixel-art assets (currently colored shapes as placeholders)
-- 🔧 Sound effects and background music
-- 🔧 Animations for chest interaction, enemy attacks, skill effects
-- 🔧 Production-ready hosting (currently localhost only)
+- ✅ API integration test suite
 
 ---
 
@@ -358,4 +562,5 @@ ON DELETE CASCADE removes all related Run, Combat, ProblemStats, and DeckCard ro
 - This project is intended to run **locally only**. There is no hosted version.
 - The frontend hardcodes the backend at `http://localhost:3000/api` (`src/api.js`).
 - `.env` files contain secrets and are git-ignored. Each developer maintains their own.
+- Player tokens and admin tokens are stored separately in `localStorage` — switching between player and admin does not conflict.
 - README maintained with assistance from AI tools (Claude — Anthropic).

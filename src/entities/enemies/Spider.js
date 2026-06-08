@@ -16,7 +16,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class Spider extends BaseEnemy {
   constructor() {
-    super('Spider', 55, 7, 'Web Trap', 'Disables one random card for the next turn');
+    super('Spider', 75, 8, 'Web Trap', 'Disables one random card for the next turn');
     this.color = 0x663399; // Purple
   }
 

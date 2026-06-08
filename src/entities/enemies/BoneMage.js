@@ -16,7 +16,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class BoneMage extends BaseEnemy {
   constructor() {
-    super('Bone Mage', 130, 10, 'Double Action', 'Increases enemy damage for one turn');
+    super('Bone Mage', 150, 11, 'Double Action', 'Increases enemy damage for one turn');
     this.isBoss = true;
     this.color = 0x8844aa; // Purple
   }
