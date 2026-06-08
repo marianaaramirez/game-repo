@@ -16,9 +16,9 @@
 
 import Phaser from 'phaser';
 import { drawConnectionBadge } from '../ui/uiHelpers.js';
-import warriorImg from '../assets/warrior.png';
-import mageImg from '../assets/mage.png';
-import rogueImg from '../assets/rogue.png';
+import warriorImg from '../assets/Player_sprites/warrior.png';
+import mageImg from '../assets/Player_sprites/mage.png';
+import rogueImg from '../assets/Player_sprites/rogue.png';
 
 // Skin definitions: name, color, and short description shown below character
 const SKINS = [

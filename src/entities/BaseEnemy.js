@@ -26,7 +26,17 @@ export default class BaseEnemy extends BaseEntity {
     this.skillName = skillName;
     this.skillDescription = skillDesc;
     this.isBoss = false;   // Overridden to true in boss subclasses
-    this.color = 0xff4444; // Default display color (red)
+    //Modifications for each enemy's sprites
+    // NEW: visual config
+    this.spriteConfig = null;
+  }
+
+  getSpriteKey() {
+    return this.spriteConfig?.key || this.name.toLowerCase();
+  }
+
+  getAnimConfig() {
+    return this.spriteConfig?.anims;
   }
 
   /**

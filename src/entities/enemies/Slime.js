@@ -18,16 +18,27 @@ export default class Slime extends BaseEnemy {
   constructor() {
     super('Slime', 60, 5, 'Sticky Hit', 'Reduces player card effectiveness by 10% for one turn');
     this.color = 0x44cc44; // Green
+    //Modifications for sprite:
+    // this.spriteConfig = {
+    //   key: 'slime',
+
+    //   anims: {
+    //     Idle: { frames: 6, frameRate: 8, loop: true },
+    //     Attack: { frames: 10, frameRate: 12, loop: false },
+    //     Hurt: { frames: 5, frameRate: 10, loop: false },
+    //     Death: { frames: 10, frameRate: 8, loop: false }
+    //   }
+    // };
   }
-  /**
-   * Sticky Hit: reduces the effectiveness of the player's next card by 10%.
-   * Modifies combatContext.cardEffectivenessModifier which CombatScene reads
-   * when calculating the final effectValue.
-   * {Player} player
-   * {object} combatContext
-   */
-  useSkill(player, combatContext) {
-    combatContext.cardEffectivenessModifier = 0.9;
-    return { message: 'Slime uses Sticky Hit! Card effectiveness reduced by 10%!' };
-  }
+    /**
+     * Sticky Hit: reduces the effectiveness of the player's next card by 10%.
+     * Modifies combatContext.cardEffectivenessModifier which CombatScene reads
+     * when calculating the final effectValue.
+     * {Player} player
+     * {object} combatContext
+     */
+    useSkill(player, combatContext) {
+      combatContext.cardEffectivenessModifier = 0.9;
+      return { message: 'Slime uses Sticky Hit! Card effectiveness reduced by 10%!' };
+    }
 }

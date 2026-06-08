@@ -33,20 +33,25 @@ import { postProblem, postCombat, updateRun, wipeDeck, saveRun, deleteRunSave, g
 import { drawBackButton, showConfirmDialog, showToast } from '../ui/uiHelpers.js';
 
 //For the sprites (vite needs to acces to every png):
-import warriorIdle from '../assets/warrior_Idle.png';
-import warriorAttack from '../assets/warrior_Attack.png';
-import warriorHurt from '../assets/warrior_Hurt.png';
-import warriorDeath from '../assets/warrior_Death.png';
+import warriorIdle from '../assets/Player_sprites/Warrior/warrior_Idle.png';
+import warriorAttack from '../assets/Player_sprites/Warrior/warrior_Attack.png';
+import warriorHurt from '../assets/Player_sprites/Warrior/warrior_Hurt.png';
+import warriorDeath from '../assets/Player_sprites/Warrior/warrior_Death.png';
 
-import mageIdle from '../assets/mage_Idle.png';
-import mageAttack from '../assets/mage_Attack.png';
-import mageHurt from '../assets/mage_Hurt.png';
-import mageDeath from '../assets/mage_Death.png';
+import mageIdle from '../assets/Player_sprites/Mage/mage_Idle.png';
+import mageAttack from '../assets/Player_sprites/Mage/mage_Attack.png';
+import mageHurt from '../assets/Player_sprites/Mage/mage_Hurt.png';
+import mageDeath from '../assets/Player_sprites/Mage/mage_Death.png';
 
-import rogueIdle from '../assets/rogue_Idle.png';
-import rogueAttack from '../assets/rogue_Attack.png';
-import rogueHurt from '../assets/rogue_Hurt.png';
-import rogueDeath from '../assets/rogue_Death.png';
+import rogueIdle from '../assets/Player_sprites/Rogue/rogue_Idle.png';
+import rogueAttack from '../assets/Player_sprites/Rogue/rogue_Attack.png';
+import rogueHurt from '../assets/Player_sprites/Rogue/rogue_Hurt.png';
+import rogueDeath from '../assets/Player_sprites/Rogue/rogue_Death.png';
+
+import slimeIdle from '../assets/Enemy_sprites/Slime/1_Slime_Idle.png';
+import slimeAttack from '../assets/Enemy_sprites/Slime/1_Slime_Attack.png';
+import slimeHurt from '../assets/Enemy_sprites/Slime/1_Slime_Hurt.png';
+import slimeDeath from '../assets/Enemy_sprites/Slime/1_Slime_Death.png';
 
 const SPRITES = {
   warrior: {
@@ -69,6 +74,22 @@ const SPRITES = {
   }
 };
 
+const ENEMY_SPRITES = {   //Falta agregar demás enemigos obviooo
+  slime: {
+    Idle: slimeIdle,
+    Attack: slimeAttack,
+    Hurt: slimeHurt,
+    Death: slimeDeath
+  }
+};
+
+const ENEMY_CONFIG = {
+  slime: {
+    frameWidth: 64,
+    frameHeight: 64
+  }
+};
+
 export default class CombatScene extends Phaser.Scene {
   constructor() {
     super('CombatScene');
@@ -83,6 +104,20 @@ export default class CombatScene extends Phaser.Scene {
           {
             frameWidth: 32,
             frameHeight: 32
+          }
+        );
+      });
+    });
+    //AGREGADO
+    Object.entries(ENEMY_SPRITES).forEach(([enemy, animations]) => {
+      const cfg = ENEMY_CONFIG[enemy];
+      Object.entries(animations).forEach(([anim, asset]) => {
+        this.load.spritesheet(
+          `${enemy}_${anim}`,
+          asset,
+          {
+            frameWidth: cfg.frameWidth,
+            frameHeight: cfg.frameHeight
           }
         );
       });
@@ -106,6 +141,7 @@ export default class CombatScene extends Phaser.Scene {
     // Pull shared state from global registry
     this.player = this.registry.get('player');
     this.enemy = this.registry.get('currentEnemy');
+    this.enemyKey = this.enemy.name.toLowerCase();
     this.isBoss = this.registry.get('isBoss') || false;
 
     const skins = ['warrior', 'mage', 'rogue'];
@@ -192,9 +228,7 @@ export default class CombatScene extends Phaser.Scene {
 
   createAnimations() {
     const skins = ['warrior', 'mage', 'rogue'];
-
     skins.forEach((skin) => {
-
       if (!this.anims.exists(`${skin}_Idle`)) {
         this.anims.create({
           key: `${skin}_Idle`,
@@ -244,6 +278,69 @@ export default class CombatScene extends Phaser.Scene {
       }
 
     });
+
+    Object.entries(ENEMY_CONFIG).forEach(([enemy, cfg]) => {
+      if (!this.anims.exists(`${enemy}_Idle`)) {
+        this.anims.create({
+          key: `${enemy}_Idle`,
+          frames: this.anims.generateFrameNumbers(
+            `${enemy}_Idle`,
+            {
+              start: 0,
+              end: 5
+            }
+          ),
+          frameRate: 8,
+          repeat: -1
+        });
+      }
+
+      if (!this.anims.exists(`${enemy}_Attack`)) {
+        this.anims.create({
+          key: `${enemy}_Attack`,
+          frames: this.anims.generateFrameNumbers(
+            `${enemy}_Attack`,
+            {
+              start: 0,
+              end: 9
+            }
+          ),
+          frameRate: 12,
+          repeat: 0
+        });
+      }
+
+      if (!this.anims.exists(`${enemy}_Hurt`)) {
+        this.anims.create({
+          key: `${enemy}_Hurt`,
+          frames: this.anims.generateFrameNumbers(
+            `${enemy}_Hurt`,
+            {
+              start: 0,
+              end: 4
+            }
+          ),
+          frameRate: 10,
+          repeat: 0
+        });
+      }
+
+      if (!this.anims.exists(`${enemy}_Death`)) {
+        this.anims.create({
+          key: `${enemy}_Death`,
+          frames: this.anims.generateFrameNumbers(
+            `${enemy}_Death`,
+            {
+              start: 0,
+              end: 9
+            }
+          ),
+          frameRate: 8,
+          repeat: 0
+        });
+      }
+
+    });
   }
   /**
    * Renders all static UI elements: player/enemy sprites, HP bars, timer bar,
@@ -283,9 +380,10 @@ export default class CombatScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Boss sprites are drawn larger to convey difficulty
-    const enemySize = this.isBoss ? 50 : 35;
-    this.add.rectangle(650, 120, enemySize * 1.5, enemySize * 2, this.enemy.color, 0.9)
-      .setStrokeStyle(2, 0xff4444);
+    //const enemySize = this.isBoss ? 50 : 35;
+    this.enemySprite = this.add.sprite(650, 120, `${this.enemyKey}_Idle`);
+    this.enemySprite.setScale(4);
+    this.enemySprite.play(`${this.enemyKey}_Idle`);
 
     if (this.isBoss) {
       this.add.text(650, 60, 'BOSS', {
@@ -477,6 +575,13 @@ export default class CombatScene extends Phaser.Scene {
       if (card.consumeUse) card.consumeUse();
       const hpBefore = this.enemy.hp;
       const cardResult = card.apply(this.player, this.enemy, effectValue, this.combatContext);
+      if (hpBefore > this.enemy.hp) {
+        this.enemySprite.play(`${this.enemyKey}_Hurt`);
+
+        this.enemySprite.once('animationcomplete', () => {
+          this.enemySprite.play(`${this.enemyKey}_Idle`);
+        });
+      }
       this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Clear Mind! ${cardResult.message}`);
       if (card.type === CARD_TYPES.DEFENSE) {
@@ -692,6 +797,11 @@ export default class CombatScene extends Phaser.Scene {
 
       // Skill enemies also attack unless the skill flagged a skip (Titan charging)
       if (!this.combatContext.enemySkipAttack) {
+        this.enemySprite.play(`${this.enemyKey}_Attack`);
+        this.enemySprite.once('animationcomplete', () => {
+          this.enemySprite.play(`${this.enemyKey}_Idle`);
+        });
+
         let damage = this.enemy.attackPower;
         damage = Math.round(damage * this.combatContext.enemyDamageBoost);
         if (evaded) {
@@ -709,6 +819,11 @@ export default class CombatScene extends Phaser.Scene {
         });
       }
     } else {
+      this.enemySprite.play(`${this.enemyKey}_Attack`);
+
+      this.enemySprite.once('animationcomplete', () => {
+        this.enemySprite.play(`${this.enemyKey}_Idle`);
+      });
       // Standard attack — spread a modified clone to pass boosted damage cleanly
       let damage = this.enemy.attackPower;
       damage = Math.round(damage * this.combatContext.enemyDamageBoost);
@@ -873,6 +988,7 @@ export default class CombatScene extends Phaser.Scene {
       updateRun(runID, fields);
     }
 
+    this.enemySprite.play(`${this.enemyKey}_Death`);
     this.messageText.setText('VICTORY!');
     this.problemText.setText(`${this.enemy.name} defeated!`).setColor('#44ff44');
 
