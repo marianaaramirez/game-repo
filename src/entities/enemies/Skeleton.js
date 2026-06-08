@@ -16,7 +16,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class Skeleton extends BaseEnemy {
   constructor() {
-    super('Skeleton', 75, 8, 'Bone Throw', 'Deals extra damage ignoring defense');
+    super('Skeleton', 95, 9, 'Bone Throw', 'Deals extra damage ignoring defense');
     this.color = 0xcccccc; // Light gray / bone white
   }
 

@@ -118,8 +118,19 @@ export default class LoginScene extends Phaser.Scene {
     }).setOrigin(0.5);
     skipBg.on('pointerdown', () => this.skipAuth());
 
+    // Admin Login — routes to the separate administrator auth flow
+    const adminBg = this.add.rectangle(400, 513, 200, 32, 0x224466, 0.9)
+      .setInteractive({ useHandCursor: true })
+      .setStrokeStyle(2, 0x66ccff);
+    this.add.text(400, 513, 'ADMIN LOGIN', {
+      fontSize: '13px', fontFamily: 'Arial Black', color: '#aaddff',
+    }).setOrigin(0.5);
+    adminBg.on('pointerover', () => adminBg.setFillStyle(0x2a5588, 1));
+    adminBg.on('pointerout',  () => adminBg.setFillStyle(0x224466, 0.9));
+    adminBg.on('pointerdown', () => this.scene.start('AdminLoginScene'));
+
     // Footer instruction
-    this.add.text(400, 540, 'Click a field to focus  -  Tab to switch  -  Enter to submit', {
+    this.add.text(400, 555, 'Click a field to focus  -  Tab to switch  -  Enter to submit', {
       fontSize: '11px', fontFamily: 'Arial', color: '#666677',
     }).setOrigin(0.5);
 

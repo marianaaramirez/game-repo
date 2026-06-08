@@ -17,7 +17,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class EvilBat extends BaseEnemy {
   constructor() {
-    super('Evil Bat', 50, 6, 'Sonic Screech', 'Reduces timer duration by 2 seconds');
+    super('Evil Bat', 70, 7, 'Sonic Screech', 'Reduces timer duration by 2 seconds');
     this.color = 0x550055; // Dark purple
   }
 

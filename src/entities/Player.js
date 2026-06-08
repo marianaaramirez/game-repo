@@ -32,6 +32,7 @@ export default class Player extends BaseEntity {
     this.selectedSkill = null;
     this.maxDeckSize   = 4;
 
+
     // --- Skin-based passive powers ---
     // Warrior: +3s on every math problem timer
     // Mage:    math difficulty tier shifted down (easier digit ranges per node)
@@ -168,16 +169,26 @@ export default class Player extends BaseEntity {
   }
 
   /**
-   * Called when the player loses a combat (roguelike death handling).
-   * Wipes the collection and deck but retains all skill cards.
-   * Resets HP and level for a new run.
+   * Called when the player loses a combat OR abandons a run.
+   * Resets HP and level for a new run. Collection and deck PRESERVED.
+   * Card wipe only happens via the OptionsScene "Wipe Local Collection" button.
    */
   onDefeat() {
-    this.collection = []; // Owned cards lost
-    this.deck       = []; // Deck lost
+    this.hp    = this.maxHp;
+    this.level = 1;
+    // collection, deck, skillCards intentionally NOT cleared
+  }
+
+  /**
+   * Hard wipe — clears collection and deck entirely.
+   * Used only by the manual wipe button in OptionsScene.
+   * Skill cards preserved (separate slot, never wiped).
+   */
+  wipeCollection() {
+    this.collection = [];
+    this.deck       = [];
     this.hp         = this.maxHp;
     this.level      = 1;
-    // skillCards intentionally NOT cleared — roguelike persistence
   }
 
   /**
