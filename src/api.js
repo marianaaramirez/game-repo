@@ -8,6 +8,7 @@
 
 const BASE_URL = 'http://localhost:3000/api';
 const TOKEN_KEY = 'mathsmash_token';
+const ADMIN_TOKEN_KEY = 'mathsmash_admin_token';
 
 // --- Token storage ---
 export function getToken() {
@@ -20,13 +21,25 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// --- Admin token storage (separate from player token) ---
+export function getAdminToken() {
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+export function setAdminToken(token) {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+export function clearAdminToken() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
 /**
  * Generic fetch wrapper. Adds JSON headers + bearer token when available.
+ * @param {string} tokenKey - which stored token to attach ('player' | 'admin')
  * @returns {Promise<object|null>} Parsed JSON, or null on network failure.
  */
-async function request(method, path, body = null) {
+async function request(method, path, body = null, tokenKey = 'player') {
   const headers = { 'Content-Type': 'application/json' };
-  const token   = getToken();
+  const token   = tokenKey === 'admin' ? getAdminToken() : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
@@ -125,3 +138,11 @@ export function getEnemyIDByName(name) {
 export function getCardIDByName(name) {
   return window.__catalog?.cardByName?.[name] || null;
 }
+
+// --- Admin (separate token, role-gated backend) ---
+export const adminRegister = (username, password) => request('POST', '/admin/register', { username, password }, 'admin');
+export const adminLogin    = (username, password) => request('POST', '/admin/login',    { username, password }, 'admin');
+export const adminGetMe    = ()                    => request('GET',  '/admin/me',    null, 'admin');
+export const adminGetStats = ()                    => request('GET',  '/admin/stats', null, 'admin');
+export const adminGetPlayers     = ()              => request('GET', '/admin/players', null, 'admin');
+export const adminGetPlayerStats = (playerID)      => request('GET', `/admin/player/${playerID}/stats`, null, 'admin');

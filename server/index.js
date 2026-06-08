@@ -22,6 +22,7 @@ import skillDeckRoutes from './routes/skillDeck.js';
 import playerRoutes    from './routes/player.js';
 import deckRoutes      from './routes/deck.js';
 import saveRoutes      from './routes/save.js';
+import adminRoutes     from './routes/admin.js';
 
 // Load .env relative to this file (so `node server/index.js` works from any cwd)
 const __filename = fileURLToPath(import.meta.url);
@@ -50,6 +51,7 @@ app.use('/api', skillDeckRoutes);
 app.use('/api', playerRoutes);
 app.use('/api', deckRoutes);
 app.use('/api', saveRoutes);
+app.use('/api', adminRoutes);
 
 // --- 404 handler ---
 app.use((req, res) => {

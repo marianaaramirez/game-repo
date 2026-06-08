@@ -49,6 +49,7 @@ export default class LevelSelectScene extends Phaser.Scene {
 
     // Player status bar (only exists after the deck builder has run once)
     const player = this.registry.get('player');
+    console.log('PLAYER:', this.player);
     if (player) {
       this.add.text(400, 92, `HP: ${player.hp}/${player.maxHp}    Level: ${player.level}`, {
         fontSize: '14px', fontFamily: 'Arial', color: '#aaaaaa',

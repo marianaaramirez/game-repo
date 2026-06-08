@@ -32,6 +32,7 @@ export default class Player extends BaseEntity {
     this.selectedSkill = null;
     this.maxDeckSize   = 4;
 
+
     // --- Skin-based passive powers ---
     // Warrior: +3s on every math problem timer
     // Mage:    math difficulty tier shifted down (easier digit ranges per node)

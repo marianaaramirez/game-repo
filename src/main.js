@@ -19,9 +19,13 @@ import RewardScene from './scenes/RewardScene.js';
 import StatsScene from './scenes/StatsScene.js';
 import OptionsScene from './scenes/OptionsScene.js';
 import SavedGamesScene from './scenes/SavedGamesScene.js';
+import AdminLoginScene from './scenes/AdminLoginScene.js';
+import AdminMenuScene from './scenes/AdminMenuScene.js';
+import AdminPlayerStatsScene from './scenes/AdminPlayerStatsScene.js';
 
 const config = {
   type: Phaser.AUTO,
+  pixelArt: true,
   // Internal game resolution. The canvas is rendered at this size; CSS
   // scales it to fit the window while preserving the 4:3 aspect ratio.
   width: 800,
@@ -56,6 +60,9 @@ const config = {
     StatsScene,
     OptionsScene,
     SavedGamesScene,
+    AdminLoginScene,
+    AdminMenuScene,
+    AdminPlayerStatsScene,
   ],
 };
 
