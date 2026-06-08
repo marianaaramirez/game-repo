@@ -16,7 +16,7 @@ import BaseEnemy from '../BaseEnemy.js';
 
 export default class Slime extends BaseEnemy {
   constructor() {
-    super('Slime', 60, 5, 'Sticky Hit', 'Reduces player card effectiveness by 10% for one turn');
+    super('Slime', 80, 6, 'Sticky Hit', 'Reduces player card effectiveness by 10% for one turn');
     this.color = 0x44cc44; // Green
     //Modifications for sprite:
     // this.spriteConfig = {
