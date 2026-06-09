@@ -28,7 +28,7 @@ export default class BaseEnemy extends BaseEntity {
     this.isBoss = false;   // Overridden to true in boss subclasses
     //Modifications for each enemy's sprites
     // NEW: visual config
-    this.spriteConfig = null;
+    this.spriteConfig = this.spriteConfig || null;
   }
 
   getSpriteKey() {

@@ -16,13 +16,39 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import titanIdle from '../../assets/Enemy_sprites/Titan/Titan_Idle.png';
+import titanAttack from '../../assets/Enemy_sprites/Titan/Titan_Attack.png';
+import titanHurt from '../../assets/Enemy_sprites/Titan/Titan_Hurt.png';
+import titanDeath from '../../assets/Enemy_sprites/Titan/Titan_Death.png';
 
 export default class Titan extends BaseEnemy {
   constructor() {
     super('Titan', 220, 17, 'Earth Smash', 'Deals heavy damage but has a delay');
     this.isBoss   = true;
-    this.color    = 0x664400; // Brown / earth tone
+    //this.color    = 0x664400; // Brown / earth tone
     this.charging = false;    // True while preparing Earth Smash
+
+    this.spriteConfig = {
+      key: 'titan',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: titanIdle,
+        Attack: titanAttack,
+        Hurt: titanHurt,
+        Death: titanDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 16, end: 23, fps: 12, loop: false },
+        Hurt: { start: 12, end: 17, fps: 10, loop: false },
+        Death: { start: 16, end: 23, fps: 8, loop: false }
+      }
+    };
   }
 
   /**

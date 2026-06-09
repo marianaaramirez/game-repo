@@ -14,11 +14,37 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import swapperIdle from '../../assets/Enemy_sprites/Swapper/Swapper_Idle.png';
+import swapperAttack from '../../assets/Enemy_sprites/Swapper/Swapper_Attack.png';
+import swapperHurt from '../../assets/Enemy_sprites/Swapper/Swapper_Hurt.png';
+import swapperDeath from '../../assets/Enemy_sprites/Swapper/Swapper_Death.png';
 
 export default class Swapper extends BaseEnemy {
   constructor() {
     super('Swapper', 70, 5, 'Chaos Swap', 'Replaces one card with a random one temporarily');
-    this.color = 0x00aacc; // Cyan
+    //this.color = 0x00aacc; // Cyan
+
+    this.spriteConfig = {
+      key: 'swapper',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: swapperIdle,
+        Attack: swapperAttack,
+        Hurt: swapperHurt,
+        Death: swapperDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 16, end: 23, fps: 12, loop: false },
+        Hurt: { start: 8, end: 11, fps: 10, loop: false },
+        Death: { start: 20, end: 29, fps: 8, loop: false }
+      }
+    };
   }
 
   /**

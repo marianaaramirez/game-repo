@@ -14,11 +14,36 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import predatorPlantIdle from '../../assets/Enemy_sprites/PredatorPlant/PredatorPlant_Idle.png';
+import predatorPlantAttack from '../../assets/Enemy_sprites/PredatorPlant/PredatorPlant_Attack.png';
+import predatorPlantHurt from '../../assets/Enemy_sprites/PredatorPlant/PredatorPlant_Hurt.png';
+import predatorPlantDeath from '../../assets/Enemy_sprites/PredatorPlant/PredatorPlant_Death.png';
 
 export default class PredatorPlant extends BaseEnemy {
   constructor() {
     super('Predator Plant', 90, 10, 'Quick Strike', 'Attacks before the player if time is low');
-    this.color = 0x22aa22; // Dark green
+    //this.color = 0x22aa22; // Dark green
+    this.spriteConfig = {
+      key: 'predatorPlant',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 2,
+      framesPerRow: 4,
+
+      assets: {
+        Idle: predatorPlantIdle,
+        Attack: predatorPlantAttack,
+        Hurt: predatorPlantHurt,
+        Death: predatorPlantDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 14, end: 20, fps: 4, loop: false },
+        Hurt: { start: 10, end: 14, fps: 6, loop: false },
+        Death: { start: 20, end: 29, fps: 8, loop: false }
+      }
+    };
   }
 
   /**
