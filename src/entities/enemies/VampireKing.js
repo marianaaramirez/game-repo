@@ -13,12 +13,37 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import vampireKingIdle from '../../assets/Enemy_sprites/VampireKing/VampireKing_Idle.png';
+import vampireKingAttack from '../../assets/Enemy_sprites/VampireKing/VampireKing_Attack.png';
+import vampireKingHurt from '../../assets/Enemy_sprites/VampireKing/VampireKing_Hurt.png';
+import vampireKingDeath from '../../assets/Enemy_sprites/VampireKing/VampireKing_Death.png';
 
 export default class VampireKing extends BaseEnemy {
   constructor() {
     super('Vampire King', 170, 14, 'Royal Command', 'Performs two actions in one turn');
     this.isBoss = true;    // Marks as boss for UI display (red BOSS label)
-    this.color  = 0xcc0000; // Dark red
+    //this.color  = 0xcc0000; // Dark red
+    this.spriteConfig = {
+      key: 'vampireKing',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: vampireKingIdle,
+        Attack: vampireKingAttack,
+        Hurt: vampireKingHurt,
+        Death: vampireKingDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 24, end: 35, fps: 12, loop: false },
+        Hurt: { start: 8, end: 11, fps: 10, loop: false },
+        Death: { start: 20, end: 29, fps: 8, loop: false }
+      }
+    };
   }
 
   /**

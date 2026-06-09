@@ -13,12 +13,38 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import boneMageIdle from '../../assets/Enemy_sprites/BoneMage/BoneMage_Idle.png';
+import boneMageAttack from '../../assets/Enemy_sprites/BoneMage/BoneMage_Attack.png';
+import boneMageHurt from '../../assets/Enemy_sprites/BoneMage/BoneMage_Hurt.png';
+import boneMageDeath from '../../assets/Enemy_sprites/BoneMage/BoneMage_Death.png';
 
 export default class BoneMage extends BaseEnemy {
   constructor() {
     super('Bone Mage', 150, 11, 'Double Action', 'Increases enemy damage for one turn');
     this.isBoss = true;
-    this.color = 0x8844aa; // Purple
+    //this.color = 0x8844aa; // Purple
+
+    this.spriteConfig = {
+      key: 'boneMage',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: boneMageIdle,
+        Attack: boneMageAttack,
+        Hurt: boneMageHurt,
+        Death: boneMageDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 16, end: 23, fps: 12, loop: false },
+        Hurt: { start: 8, end: 11, fps: 10, loop: false },
+        Death: { start: 20, end: 29, fps: 8, loop: false }
+      }
+    };
   }
   /**
    * Double Action: boosts the enemy's next attack to deal 2x damage.

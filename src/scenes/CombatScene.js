@@ -48,11 +48,6 @@ import rogueAttack from '../assets/Player_sprites/Rogue/rogue_Attack.png';
 import rogueHurt from '../assets/Player_sprites/Rogue/rogue_Hurt.png';
 import rogueDeath from '../assets/Player_sprites/Rogue/rogue_Death.png';
 
-import slimeIdle from '../assets/Enemy_sprites/Slime/1_Slime_Idle.png';
-import slimeAttack from '../assets/Enemy_sprites/Slime/1_Slime_Attack.png';
-import slimeHurt from '../assets/Enemy_sprites/Slime/1_Slime_Hurt.png';
-import slimeDeath from '../assets/Enemy_sprites/Slime/1_Slime_Death.png';
-
 const SPRITES = {
   warrior: {
     Idle: warriorIdle,
@@ -74,21 +69,14 @@ const SPRITES = {
   }
 };
 
-const ENEMY_SPRITES = {   //Falta agregar demás enemigos obviooo
-  slime: {
-    Idle: slimeIdle,
-    Attack: slimeAttack,
-    Hurt: slimeHurt,
-    Death: slimeDeath
-  }
-};
 
-const ENEMY_CONFIG = {
-  slime: {
-    frameWidth: 64,
-    frameHeight: 64
-  }
-};
+function getRowFrames(cfg, animFrames) {
+  const start = cfg.row * cfg.framesPerRow;
+  return {
+    start,
+    end: start + animFrames - 1
+  };
+}
 
 export default class CombatScene extends Phaser.Scene {
   constructor() {
@@ -108,18 +96,13 @@ export default class CombatScene extends Phaser.Scene {
         );
       });
     });
-    //AGREGADO
-    Object.entries(ENEMY_SPRITES).forEach(([enemy, animations]) => {
-      const cfg = ENEMY_CONFIG[enemy];
-      Object.entries(animations).forEach(([anim, asset]) => {
-        this.load.spritesheet(
-          `${enemy}_${anim}`,
-          asset,
-          {
-            frameWidth: cfg.frameWidth,
-            frameHeight: cfg.frameHeight
-          }
-        );
+
+    const enemy = this.registry.get('currentEnemy');
+    const cfg = enemy.spriteConfig;
+    Object.entries(cfg.assets).forEach(([anim, asset]) => {
+      this.load.spritesheet(`${cfg.key}_${anim}`, asset, {
+        frameWidth: cfg.frameWidth,
+        frameHeight: cfg.frameHeight
       });
     });
   }
@@ -141,7 +124,7 @@ export default class CombatScene extends Phaser.Scene {
     // Pull shared state from global registry
     this.player = this.registry.get('player');
     this.enemy = this.registry.get('currentEnemy');
-    this.enemyKey = this.enemy.name.toLowerCase();
+    this.enemyKey = this.enemy.getSpriteKey();
     this.isBoss = this.registry.get('isBoss') || false;
 
     const skins = ['warrior', 'mage', 'rogue'];
@@ -279,67 +262,28 @@ export default class CombatScene extends Phaser.Scene {
 
     });
 
-    Object.entries(ENEMY_CONFIG).forEach(([enemy, cfg]) => {
-      if (!this.anims.exists(`${enemy}_Idle`)) {
+    const enemy = this.registry.get('currentEnemy');
+    const cfg = enemy.spriteConfig;
+    const anims = cfg.anims;
+    Object.entries(anims).forEach(([name, a]) => {
+      if (!this.anims.exists(`${cfg.key}_${name}`)) {
+        //const base = 0; 
+        //const base = cfg.row * cfg.framesPerRow;
+        const base = cfg.row;
         this.anims.create({
-          key: `${enemy}_Idle`,
-          frames: this.anims.generateFrameNumbers(
-            `${enemy}_Idle`,
-            {
-              start: 0,
-              end: 5
-            }
-          ),
-          frameRate: 8,
-          repeat: -1
+          key: `${cfg.key}_${name}`,
+          // frames: this.anims.generateFrameNumbers(`${cfg.key}_${name}`, {
+          //   start: base + a.start,
+          //   end: base + a.end
+          // }),
+          frames: this.anims.generateFrameNumbers(`${cfg.key}_${name}`, {
+            start: a.start,
+            end: a.end
+          }),
+          frameRate: a.fps,
+          repeat: a.loop ? -1 : 0
         });
       }
-
-      if (!this.anims.exists(`${enemy}_Attack`)) {
-        this.anims.create({
-          key: `${enemy}_Attack`,
-          frames: this.anims.generateFrameNumbers(
-            `${enemy}_Attack`,
-            {
-              start: 0,
-              end: 9
-            }
-          ),
-          frameRate: 12,
-          repeat: 0
-        });
-      }
-
-      if (!this.anims.exists(`${enemy}_Hurt`)) {
-        this.anims.create({
-          key: `${enemy}_Hurt`,
-          frames: this.anims.generateFrameNumbers(
-            `${enemy}_Hurt`,
-            {
-              start: 0,
-              end: 4
-            }
-          ),
-          frameRate: 10,
-          repeat: 0
-        });
-      }
-
-      if (!this.anims.exists(`${enemy}_Death`)) {
-        this.anims.create({
-          key: `${enemy}_Death`,
-          frames: this.anims.generateFrameNumbers(
-            `${enemy}_Death`,
-            {
-              start: 0,
-              end: 9
-            }
-          ),
-          frameRate: 8,
-          repeat: 0
-        });
-      }
-
     });
   }
   /**
@@ -692,6 +636,12 @@ export default class CombatScene extends Phaser.Scene {
           this.playerSprite.play(`${this.skinKey}_Idle`);
         });
       }
+      if (hpBefore > this.enemy.hp) {   //AÑADIDO para enemigo
+        this.enemySprite.play(`${this.enemyKey}_Hurt`);
+        this.enemySprite.once('animationcomplete', () => {
+          this.enemySprite.play(`${this.enemyKey}_Idle`);
+        });
+      }
       this.totalDamageDealt += Math.max(0, hpBefore - this.enemy.hp);
       this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
@@ -811,6 +761,7 @@ export default class CombatScene extends Phaser.Scene {
           msg += `\n${this.enemy.name} attacks for ${damage} damage!`;
         }
       }
+  
       if (!evaded) {
         this.playerSprite.play(`${this.skinKey}_Hurt`);
 
@@ -820,7 +771,6 @@ export default class CombatScene extends Phaser.Scene {
       }
     } else {
       this.enemySprite.play(`${this.enemyKey}_Attack`);
-
       this.enemySprite.once('animationcomplete', () => {
         this.enemySprite.play(`${this.enemyKey}_Idle`);
       });

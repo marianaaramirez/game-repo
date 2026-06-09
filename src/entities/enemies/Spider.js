@@ -13,11 +13,36 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import spiderIdle from '../../assets/Enemy_sprites/Spider/Spider_Idle.png';
+import spiderAttack from '../../assets/Enemy_sprites/Spider/Spider_Attack.png';
+import spiderHurt from '../../assets/Enemy_sprites/Spider/Spider_Hurt.png';
+import spiderDeath from '../../assets/Enemy_sprites/Spider/Spider_Death.png';
 
 export default class Spider extends BaseEnemy {
   constructor() {
     super('Spider', 75, 8, 'Web Trap', 'Disables one random card for the next turn');
-    this.color = 0x663399; // Purple
+
+    this.spriteConfig = {
+      key: 'spider',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: spiderIdle,
+        Attack: spiderAttack,
+        Hurt: spiderHurt,
+        Death: spiderDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 16, end: 23, fps: 12, loop: false },
+        Hurt: { start: 8, end: 11, fps: 10, loop: false },
+        Death: { start: 18, end: 26, fps: 8, loop: false }
+      }
+    };
   }
 
   /**

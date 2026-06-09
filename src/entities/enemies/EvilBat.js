@@ -14,11 +14,37 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import evilBatIdle from '../../assets/Enemy_sprites/EvilBat/EvilBat_Idle.png';
+import evilBatAttack from '../../assets/Enemy_sprites/EvilBat/EvilBat_Attack.png';
+import evilBatHurt from '../../assets/Enemy_sprites/EvilBat/EvilBat_Hurt.png';
+import evilBatDeath from '../../assets/Enemy_sprites/EvilBat/EvilBat_Death.png';
 
 export default class EvilBat extends BaseEnemy {
   constructor() {
     super('Evil Bat', 70, 7, 'Sonic Screech', 'Reduces timer duration by 2 seconds');
-    this.color = 0x550055; // Dark purple
+    //this.color = 0x550055; // Dark purple
+
+    this.spriteConfig = {
+      key: 'evilBat',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: evilBatIdle,
+        Attack: evilBatAttack,
+        Hurt: evilBatHurt,
+        Death: evilBatDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 6, loop: true },
+        Attack: { start: 12, end: 17, fps: 10, loop: false },
+        Hurt: { start: 8, end: 11, fps: 6, loop: false },
+        Death: { start: 20, end: 29, fps: 6, loop: false }
+      }
+    };
   }
 
   /**

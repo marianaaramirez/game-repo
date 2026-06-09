@@ -13,22 +13,37 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import slimeIdle from '../../assets/Enemy_sprites/Slime/1_Slime_Idle.png';
+import slimeAttack from '../../assets/Enemy_sprites/Slime/1_Slime_Attack.png';
+import slimeHurt from '../../assets/Enemy_sprites/Slime/1_Slime_Hurt.png';
+import slimeDeath from '../../assets/Enemy_sprites/Slime/1_Slime_Death.png';
+
 
 export default class Slime extends BaseEnemy {
   constructor() {
-    super('Slime', 80, 6, 'Sticky Hit', 'Reduces player card effectiveness by 10% for one turn');
-    this.color = 0x44cc44; // Green
-    //Modifications for sprite:
-    // this.spriteConfig = {
-    //   key: 'slime',
+    super('Slime', 60, 5, 'Sticky Hit', 'Reduces player card effectiveness by 10% for one turn');
 
-    //   anims: {
-    //     Idle: { frames: 6, frameRate: 8, loop: true },
-    //     Attack: { frames: 10, frameRate: 12, loop: false },
-    //     Hurt: { frames: 5, frameRate: 10, loop: false },
-    //     Death: { frames: 10, frameRate: 8, loop: false }
-    //   }
-    // };
+    this.spriteConfig = {
+      key: 'slime',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: slimeIdle,
+        Attack: slimeAttack,
+        Hurt: slimeHurt,
+        Death: slimeDeath
+      },
+
+      anims: {
+        Idle: { start: 12, end: 17, fps: 10, loop: true },
+        Attack: { start: 20, end: 29, fps: 6, loop: false },
+        Hurt: { start: 10, end: 14, fps: 8, loop: false },
+        Death: { start: 20, end: 29, fps: 6, loop: false }
+      }
+    };
   }
     /**
      * Sticky Hit: reduces the effectiveness of the player's next card by 10%.
@@ -37,8 +52,8 @@ export default class Slime extends BaseEnemy {
      * {Player} player
      * {object} combatContext
      */
-    useSkill(player, combatContext) {
-      combatContext.cardEffectivenessModifier = 0.9;
-      return { message: 'Slime uses Sticky Hit! Card effectiveness reduced by 10%!' };
-    }
+  useSkill(player, combatContext) {
+    combatContext.cardEffectivenessModifier = 0.9;
+    return { message: 'Slime uses Sticky Hit! Card effectiveness reduced by 10%!' };
+  }
 }

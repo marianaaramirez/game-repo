@@ -14,11 +14,37 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import cardThiefIdle from '../../assets/Enemy_sprites/CardThief/CardThief_Idle.png';
+import cardThiefAttack from '../../assets/Enemy_sprites/CardThief/CardThief_Attack.png';
+import cardThiefHurt from '../../assets/Enemy_sprites/CardThief/CardThief_Hurt.png';
+import cardThiefDeath from '../../assets/Enemy_sprites/CardThief/CardThief_Death.png';
 
 export default class CardThief extends BaseEnemy {
   constructor() {
     super('Card Thief', 70, 5, 'Steal Card', 'Locks one card until the player answers correctly');
-    this.color = 0xaa8800; // Gold / amber
+    //this.color = 0xaa8800; // Gold / amber
+
+    this.spriteConfig = {
+      key: 'cardThief',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: cardThiefIdle,
+        Attack: cardThiefAttack,
+        Hurt: cardThiefHurt,
+        Death: cardThiefDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 10, end: 14, fps: 12, loop: false },
+        Hurt: { start: 8, end: 11, fps: 10, loop: false },
+        Death: { start: 12, end: 17, fps: 8, loop: false }
+      }
+    };
   }
 
   /**

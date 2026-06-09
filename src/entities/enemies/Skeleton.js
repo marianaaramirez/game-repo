@@ -13,11 +13,37 @@
  */
 
 import BaseEnemy from '../BaseEnemy.js';
+import skeletonIdle from '../../assets/Enemy_sprites/Skeleton/Skeleton_Idle.png';
+import skeletonAttack from '../../assets/Enemy_sprites/Skeleton/Skeleton_Attack.png';
+import skeletonHurt from '../../assets/Enemy_sprites/Skeleton/Skeleton_Hurt.png';
+import skeletonDeath from '../../assets/Enemy_sprites/Skeleton/Skeleton_Death.png';
 
 export default class Skeleton extends BaseEnemy {
   constructor() {
     super('Skeleton', 95, 9, 'Bone Throw', 'Deals extra damage ignoring defense');
-    this.color = 0xcccccc; // Light gray / bone white
+    //this.color = 0xcccccc; // Light gray / bone white
+
+    this.spriteConfig = {
+      key: 'skeleton',
+      frameWidth: 64,
+      frameHeight: 64,
+      row: 1,
+      framesPerRow: 6,
+
+      assets: {
+        Idle: skeletonIdle,
+        Attack: skeletonAttack,
+        Hurt: skeletonHurt,
+        Death: skeletonDeath
+      },
+
+      anims: {
+        Idle: { start: 8, end: 11, fps: 8, loop: true },
+        Attack: { start: 18, end: 26, fps: 12, loop: false },
+        Hurt: { start: 8, end: 11, fps: 10, loop: false },
+        Death: { start: 12, end: 17, fps: 8, loop: false }
+      }
+    };
   }
 
   /**
