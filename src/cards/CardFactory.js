@@ -7,42 +7,80 @@
  * AI tool used for code commenting: Claude (Anthropic)
  */
 
-import { getRandomAttackCard } from './AttackCard.js';
+import { getRandomAttackCard, ATTACK_CARDS } from './AttackCard.js';
 import { getRandomDefenseCard, DEFENSE_CARDS } from './DefenseCard.js';
 import { getRandomSkillCard } from './SkillCard.js';
+
+/**
+ * Returns a random card from the given pool that is NOT already owned
+ * (checked by name against ownedNames set). Falls back to a fresh random
+ * if all cards in the pool are already owned.
+ * @param {Function[]} pool  - Array of card factory functions
+ * @param {Set<string>} ownedNames
+ * @returns {BaseCard}
+ */
+function pickUnique(pool, ownedNames) {
+  // Build list of factories for cards not yet owned
+  const available = pool.filter((factory) => {
+    const sample = factory();
+    return !ownedNames.has(sample.name);
+  });
+  const source = available.length > 0 ? available : pool; // fallback if all owned
+  const factory = source[Math.floor(Math.random() * source.length)];
+  return factory();
+}
+
 /**
  * Creates the initial deck for a new run.
- * Always 2 attack cards + 2 defense cards, scaled to the current world level.
- * {number} worldLevel
- * {BaseCard[]} Array of 4 cards
+ * 2 attack + 2 defense, no duplicates within the starter deck.
+ * @param {number} worldLevel
+ * @returns {BaseCard[]}
  */
 function createStarterDeck(worldLevel = 1) {
-  // Always include the heal defense card so players learn that mechanic from turn 1
-  const healCard = DEFENSE_CARDS[worldLevel]?.[2]?.() || DEFENSE_CARDS[1][2]();
-  return [
-    getRandomAttackCard(worldLevel),
-    getRandomAttackCard(worldLevel),
-    healCard,
-    getRandomDefenseCard(worldLevel),
-  ];
+  const atkPool = ATTACK_CARDS[worldLevel] || ATTACK_CARDS[1];
+  const defPool = DEFENSE_CARDS[worldLevel] || DEFENSE_CARDS[1];
+  const owned   = new Set();
+
+  const pick = (pool) => {
+    const card = pickUnique(pool, owned);
+    owned.add(card.name);
+    return card;
+  };
+
+  // Always include the heal defense card as first defense card (index 2 = 'heal')
+  const healCard = defPool[2]?.() || defPool[0]();
+  owned.add(healCard.name);
+
+  const atk1 = pick(atkPool);
+  const atk2 = pick(atkPool);
+
+  // Second defense card — unique vs healCard
+  const def2 = pickUnique(defPool, owned);
+
+  return [atk1, atk2, healCard, def2];
 }
+
 /**
- * Creates a single reward card after winning a normal combat.
- * 50% chance of attack card, 50% chance of defense card.
- * {number} worldLevel
- * {BaseCard}
+ * Creates a single reward card, excluding cards already owned by the player.
+ * 50% attack / 50% defense. Falls back to random if all cards are owned.
+ * @param {number} worldLevel
+ * @param {string[]} [ownedNames]  - Names of cards already in collection
+ * @returns {BaseCard}
  */
-function createRewardCard(worldLevel = 1) {
-  const roll = Math.random();
-  if (roll < 0.5) {
-    return getRandomAttackCard(worldLevel);
+function createRewardCard(worldLevel = 1, ownedNames = []) {
+  const owned   = new Set(ownedNames);
+  const atkPool = ATTACK_CARDS[worldLevel] || ATTACK_CARDS[1];
+  const defPool = DEFENSE_CARDS[worldLevel] || DEFENSE_CARDS[1];
+
+  if (Math.random() < 0.5) {
+    return pickUnique(atkPool, owned);
   }
-  return getRandomDefenseCard(worldLevel);
+  return pickUnique(defPool, owned);
 }
+
 /**
  * Creates a skill card reward granted when the player defeats a boss.
- * Skill cards persist through defeats (roguelike progression).
- * {BaseCard}
+ * @returns {BaseCard}
  */
 function createBossReward() {
   return getRandomSkillCard();

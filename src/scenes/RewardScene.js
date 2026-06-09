@@ -79,7 +79,8 @@ export default class RewardScene extends Phaser.Scene {
     } else if (this.chestReward) {
       // Chest: either a card (60%) or an HP heal (40%)
       if (Math.random() < 0.6) {
-        newCard = CardFactory.createRewardCard(this.worldLevel);
+        const owned = player.collection.map((c) => c.name);
+        newCard = CardFactory.createRewardCard(this.worldLevel, owned);
         player.addCard(newCard);
         await this.persistRewardCard(newCard, player);
       } else {
@@ -92,7 +93,8 @@ export default class RewardScene extends Phaser.Scene {
       }
     } else {
       // Normal combat win: an attack/defense card
-      newCard = CardFactory.createRewardCard(this.worldLevel);
+      const owned = player.collection.map((c) => c.name);
+      newCard = CardFactory.createRewardCard(this.worldLevel, owned);
       player.addCard(newCard);
       this.persistRewardCard(newCard, player);
     }

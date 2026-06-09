@@ -498,7 +498,7 @@ export default class CombatScene extends Phaser.Scene {
       }
 
       this.updateHP();
-      this.time.delayedCall(1500, () => {
+      this.time.delayedCall(2000, () => {
         this.doEnemyTurn();
       });
       return;
@@ -541,7 +541,7 @@ export default class CombatScene extends Phaser.Scene {
       }
       this.updateHP();
       if (CombatSystem.checkWin(this.enemy)) { this.handleWin(); return; }
-      this.time.delayedCall(1200, () => { this.doEnemyTurn(); });
+      this.time.delayedCall(2000, () => { this.doEnemyTurn(); });
       return;
     }
 
@@ -698,7 +698,7 @@ export default class CombatScene extends Phaser.Scene {
       return;
     }
 
-    this.time.delayedCall(1200, () => {
+    this.time.delayedCall(2000, () => {
       this.doEnemyTurn();
     });
   }
@@ -841,7 +841,7 @@ export default class CombatScene extends Phaser.Scene {
       return;
     }
 
-    this.time.delayedCall(1500, () => {
+    this.time.delayedCall(2000, () => {
       this.startNewTurn();
     });
   }
@@ -921,7 +921,7 @@ export default class CombatScene extends Phaser.Scene {
     this.timerBarFill.setVisible(false);
     this.problemText.setText('');
 
-    this.time.delayedCall(1200, () => {
+    this.time.delayedCall(2000, () => {
       this.doEnemyTurn();
     });
   }
@@ -1032,7 +1032,10 @@ export default class CombatScene extends Phaser.Scene {
     this.time.delayedCall(2500, () => {
       this.player.onDefeat();              // HP/level reset, cards preserved
       this.registry.set('currentMap', null); // Force new map on next run
-      this.scene.start('HomeScene');
+      this.scene.start('DefeatScene', {
+        enemyName:  this.enemy.name,
+        worldLevel: this.worldLevel,
+      });
     });
   }
 
