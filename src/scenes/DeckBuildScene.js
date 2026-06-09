@@ -1,20 +1,16 @@
 /**
  * DeckBuildScene.js
- * Interactive deck builder shown before entering a level and after every combat.
- * The player picks which cards from their collection go into the active deck.
+ * Card ordering screen shown before entering a level and after every combat.
+ * The player arranges ALL their ATK/DEF cards in order. The first 4 become
+ * the initial combat hand; the rest queue up and cycle in when a card is used.
  *
- * Rules:
- *   - The deck holds at most 4 attack/defense cards (player.maxDeckSize).
- *   - Skill cards live in a SEPARATE slot and are auto-equipped — they do not
- *     count toward the 4-card limit.
- *   - Clicking a collection card toggles it in or out of the deck.
- *   - ENTER MAP is disabled until the deck has at least one card.
+ * Reordering: click a card to select it (orange glow), click another to swap.
  *
- * On the first ever run this scene also creates the Player and the starter
- * collection (2 attack + 2 defense cards).
+ * Skill cards occupy a separate slot (max 1 equipped). They do NOT cycle —
+ * they have 2 uses per combat.
  *
  * Navigation:
- *   ENTER MAP → MapScene (passes worldLevel; the map is reused if it already exists)
+ *   ENTER MAP → MapScene
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -29,11 +25,10 @@ import { createAttackCardByName } from '../cards/AttackCard.js';
 import { createDefenseCardByName } from '../cards/DefenseCard.js';
 import {
   getSkillDeck, equipSkillCard, unequipSkillCard, addSkillCard, getCardIDByName,
-  getDeck, addDeckCard, setDeckCardActive,
+  getDeck, addDeckCard,
 } from '../api.js';
 import { drawConnectionBadge, drawBackButton, showLoading } from '../ui/uiHelpers.js';
 
-// Display names per world level
 const WORLD_NAMES = { 1: 'Ancient Temple', 2: 'Castle', 3: 'Wasteland' };
 
 export default class DeckBuildScene extends Phaser.Scene {
@@ -41,13 +36,11 @@ export default class DeckBuildScene extends Phaser.Scene {
     super('DeckBuildScene');
   }
 
-  /**
-   * Receives worldLevel from the previous scene (LevelSelectScene or RewardScene).
-   * @param {{ worldLevel: number }} data
-   */
   init(data) {
     this.worldLevel = data.worldLevel || 1;
     this.autoResume = !!(data && data.autoResume);
+    this.selectedSwapIndex = (data && data.selectedSwapIndex !== undefined)
+      ? data.selectedSwapIndex : null;
   }
 
   async create() {
@@ -57,15 +50,13 @@ export default class DeckBuildScene extends Phaser.Scene {
 
     // Create the Player on the first ever run
     let player = this.registry.get('player');
-    const isNewPlayer = !player;
-    if (isNewPlayer) {
+    if (!player) {
       const skinIndex = this.registry.get('selectedSkin') || 0;
       player = new Player(skinIndex);
       this.registry.set('player', player);
     }
 
-    // Hydrate from backend when the local collection is empty — covers both
-    // first-time create and "resume saved run" (player exists but starts blank).
+    // Hydrate from backend when the local collection is empty
     const needsHydration = player.collection.length === 0
       && player.skillCards.length === 0
       && this.registry.get('authMode') === 'online';
@@ -91,8 +82,7 @@ export default class DeckBuildScene extends Phaser.Scene {
 
     this.player = player;
 
-    // Auto-resume — if SavedGamesScene flagged a combat restore, set up the
-    // enemy + map state then jump straight into CombatScene.
+    // Auto-resume — if SavedGamesScene flagged a combat restore
     if (this.autoResume) {
       const snap = this.registry.get('pendingCombatRestore');
       if (snap) {
@@ -113,7 +103,7 @@ export default class DeckBuildScene extends Phaser.Scene {
     }
 
     // --- Header ---
-    this.add.text(400, 28, 'BUILD YOUR DECK', {
+    this.add.text(400, 28, 'SET CARD ORDER', {
       fontSize: '26px', fontFamily: 'Arial Black', color: '#ffcc00',
       stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5);
@@ -122,37 +112,32 @@ export default class DeckBuildScene extends Phaser.Scene {
       fontSize: '14px', fontFamily: 'Arial', color: '#88aacc',
     }).setOrigin(0.5);
 
-    // Deck counter — green when at least one card is selected, red when empty
-    const deckColor = player.deck.length > 0 ? '#44ff44' : '#ff6666';
+    // Instructions
+    const totalCards = player.deck.length;
+    const handSize = Math.min(4, totalCards);
     this.add.text(400, 84,
-      `Deck: ${player.deck.length} / ${player.maxDeckSize}    (click a card to add or remove it)`, {
-        fontSize: '14px', fontFamily: 'Arial Black', color: deckColor,
+      `${totalCards} cards — first ${handSize} in hand, rest queue up. Click two cards to swap.`, {
+        fontSize: '13px', fontFamily: 'Arial', color: '#88ffaa',
       }).setOrigin(0.5);
 
-    // --- Collection grid ---
+    // --- Collection grid (ordered) ---
     this.renderCollection();
 
-    // --- Skill cards section (max 1 equipped) ---
+    // --- Skill cards section (unchanged) ---
     if (player.skillCards.length > 0) {
       this.add.text(400, 372, 'SKILL CARD  (max 1 — click to equip / unequip)', {
         fontSize: '11px', fontFamily: 'Arial Black', color: '#ffaa00',
       }).setOrigin(0.5);
-
       this.renderSkillCards();
     }
 
-    // Transient warning message (e.g. deck full)
-    this.warnText = this.add.text(400, 530, '', {
-      fontSize: '12px', fontFamily: 'Arial Black', color: '#ff6666',
-    }).setOrigin(0.5);
-
-    // --- Enter map button (disabled while the deck is empty) ---
+    // --- Enter map button ---
     const canEnter = player.deck.length > 0;
     const enterBg = this.add.rectangle(400, 565, 230, 46,
       canEnter ? 0x44aa44 : 0x555555, 0.95)
       .setStrokeStyle(2, canEnter ? 0x66ff66 : 0x777777);
 
-    this.add.text(400, 565, canEnter ? 'ENTER MAP' : 'SELECT AT LEAST 1 CARD', {
+    this.add.text(400, 565, canEnter ? 'ENTER MAP' : 'NO CARDS AVAILABLE', {
       fontSize: '17px', fontFamily: 'Arial Black', color: '#ffffff',
     }).setOrigin(0.5);
 
@@ -165,19 +150,19 @@ export default class DeckBuildScene extends Phaser.Scene {
   }
 
   /**
-   * Renders every card in the collection as a clickable grid tile.
-   * Cards currently in the deck are highlighted; the rest are dimmed.
-   * Clicking a card toggles it and restarts the scene to redraw.
+   * Renders all ATK/DEF cards in their deck order.
+   * First 4 shown as "HAND" with gold border, rest as "QUEUE" dimmed.
+   * Click two cards to swap their positions.
    */
   renderCollection() {
-    const cards   = this.player.collection;
+    const cards   = this.player.deck;
     const cardW   = 108;
     const cardH   = 148;
     const perRow  = 6;
     const gapX    = 8;
     const gapY    = 14;
     const startX  = 400 - ((perRow - 1) * (cardW + gapX)) / 2;
-    const startY  = 188; // Y center of the first row
+    const startY  = 188;
 
     cards.forEach((card, i) => {
       const row = Math.floor(i / perRow);
@@ -185,49 +170,49 @@ export default class DeckBuildScene extends Phaser.Scene {
       const x   = startX + col * (cardW + gapX);
       const y   = startY + row * (cardH + gapY);
 
-      const inDeck = this.player.isInDeck(card);
+      const inHand    = i < 4;
+      const isSelected = this.selectedSwapIndex === i;
 
-      // Selected cards are bright with a gold border; unselected are dimmed
-      const bg = this.add.rectangle(x, y, cardW, cardH, card.getColor(),
-        inDeck ? 0.85 : 0.32)
-        .setStrokeStyle(inDeck ? 4 : 2, inDeck ? 0xffcc00 : 0x666666)
+      // Visual: hand cards bright + gold, queue cards dim, selected = orange
+      const borderColor = isSelected ? 0xff6600 : (inHand ? 0xffcc00 : 0x666666);
+      const alpha       = isSelected ? 0.95 : (inHand ? 0.85 : 0.4);
+
+      const bg = this.add.rectangle(x, y, cardW, cardH, card.getColor(), alpha)
+        .setStrokeStyle(isSelected ? 5 : (inHand ? 4 : 2), borderColor)
         .setInteractive({ useHandCursor: true });
 
-      // Type badge (ATK / DEF / SKL)
+      // Position number
+      this.add.text(x - 40, y - 60, `#${i + 1}`, {
+        fontSize: '13px', fontFamily: 'Arial Black',
+        color: inHand ? '#ffcc00' : '#888899',
+      }).setOrigin(0.5);
+
+      // HAND / QUEUE badge
+      const badge = inHand ? 'HAND' : 'QUEUE';
+      const badgeColor = inHand ? '#ffcc00' : '#888899';
+      this.add.text(x + 20, y - 60, badge, {
+        fontSize: '9px', fontFamily: 'Arial Black', color: '#1a1a2e',
+        backgroundColor: badgeColor, padding: { x: 3, y: 1 },
+      }).setOrigin(0.5);
+
+      // Type badge
       let typeLabel = 'ATK';
       if (card.type === CARD_TYPES.DEFENSE) typeLabel = 'DEF';
-      if (card.type === CARD_TYPES.SKILL)   typeLabel = 'SKL';
-
-      this.add.text(x, y - 56, typeLabel, {
+      this.add.text(x, y - 40, typeLabel, {
         fontSize: '11px', fontFamily: 'Arial Black', color: '#ffffff',
         backgroundColor: '#00000088', padding: { x: 4, y: 2 },
       }).setOrigin(0.5);
 
-      // "IN DECK" tag on selected cards
-      if (inDeck) {
-        this.add.text(x + 30, y - 56, 'IN DECK', {
-          fontSize: '9px', fontFamily: 'Arial Black', color: '#1a1a2e',
-          backgroundColor: '#ffcc00', padding: { x: 3, y: 1 },
-        }).setOrigin(0.5);
-      }
-
       // Card name
-      this.add.text(x, y - 26, card.name, {
+      this.add.text(x, y - 16, card.name, {
         fontSize: '12px', fontFamily: 'Arial Black', color: '#ffffff',
         wordWrap: { width: cardW - 10 }, align: 'center',
       }).setOrigin(0.5);
 
-      // Power value (skill cards have baseValue 0, so it is omitted for them)
+      // Power value
       if (card.baseValue > 0) {
-        this.add.text(x, y + 6, `Power: ${card.baseValue}`, {
+        this.add.text(x, y + 10, `Power: ${card.baseValue}`, {
           fontSize: '11px', fontFamily: 'Arial', color: '#ffdd88',
-        }).setOrigin(0.5);
-      }
-
-      // Per-level use limit hint
-      if (card.maxUsesPerLevel) {
-        this.add.text(x, y + 22, `Uses: ${card.maxUsesPerLevel}/combat`, {
-          fontSize: '9px', fontFamily: 'Arial', color: '#88ffaa',
         }).setOrigin(0.5);
       }
 
@@ -237,25 +222,34 @@ export default class DeckBuildScene extends Phaser.Scene {
         wordWrap: { width: cardW - 10 }, align: 'center',
       }).setOrigin(0.5);
 
-      // Click toggles the card in/out of the deck
+      // Swap logic: click to select, click another to swap
       bg.on('pointerdown', () => {
-        const result = this.player.toggleDeckCard(card);
-        if (result === 'full') {
-          this.warnText.setText(`Deck is full (max ${this.player.maxDeckSize}). Remove a card first.`);
-          return;
+        if (this.selectedSwapIndex === null) {
+          // First click — select this card
+          this.scene.restart({
+            worldLevel: this.worldLevel,
+            selectedSwapIndex: i,
+          });
+        } else if (this.selectedSwapIndex === i) {
+          // Click same card — deselect
+          this.scene.restart({
+            worldLevel: this.worldLevel,
+            selectedSwapIndex: null,
+          });
+        } else {
+          // Second click — swap and deselect
+          this.player.swapCardOrder(this.selectedSwapIndex, i);
+          this.scene.restart({
+            worldLevel: this.worldLevel,
+            selectedSwapIndex: null,
+          });
         }
-        // Sync the new is_active state to backend (fire-and-forget)
-        this.syncDeckCardActive(card, result === 'added');
-        // Redraw the scene to reflect the new deck selection
-        this.scene.restart();
       });
     });
   }
 
   /**
-   * Renders the player's skill cards as a horizontal clickable row.
-   * Only one skill card can be equipped at a time (selectedSkill slot).
-   * Equipped card is highlighted in gold; others are dimmed.
+   * Renders the player's skill cards as a horizontal clickable row (unchanged).
    */
   renderSkillCards() {
     const skills  = this.player.skillCards;
@@ -306,7 +300,7 @@ export default class DeckBuildScene extends Phaser.Scene {
       bg.on('pointerdown', () => {
         const result = this.player.toggleSkillCard(card);
         this.syncSkillEquip(card, result);
-        this.scene.restart();
+        this.scene.restart({ worldLevel: this.worldLevel });
       });
     });
   }
@@ -315,11 +309,6 @@ export default class DeckBuildScene extends Phaser.Scene {
   // Backend sync helpers
   // ============================================================
 
-  /**
-   * Loads the player's owned skill cards from the backend and rebuilds
-   * player.skillCards + player.selectedSkill on the client.
-   * Skips silently in offline mode or on network failure.
-   */
   async hydrateSkillDeck(player) {
     if (this.registry.get('authMode') !== 'online') return;
     const res = await getSkillDeck();
@@ -328,7 +317,6 @@ export default class DeckBuildScene extends Phaser.Scene {
     res.data.forEach((row) => {
       const card = getSkillByName(row.name);
       if (!card) return;
-      // Tag the card so syncSkillEquip can find its DB cardID later
       card.dbCardID = row.cardID;
       player.skillCards.push(card);
       if (row.is_equipped) {
@@ -337,24 +325,15 @@ export default class DeckBuildScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Pushes the equip/unequip change to the backend (fire-and-forget).
-   * If the card lacks a dbCardID (e.g. earned offline), looks it up from the
-   * catalog and POSTs to /skill-deck first so the row exists before equipping.
-   */
   async syncSkillEquip(card, toggleResult) {
     if (this.registry.get('authMode') !== 'online') return;
-
-    // Recover dbCardID from catalog if missing (covers offline→online case)
     let cardID = card.dbCardID;
     if (!cardID) {
       cardID = getCardIDByName(card.name);
-      if (!cardID) return; // Catalog not loaded — give up
+      if (!cardID) return;
       card.dbCardID = cardID;
-      // Ensure the row exists on backend before equipping
       await addSkillCard(cardID);
     }
-
     if (toggleResult === 'equipped') {
       equipSkillCard(cardID);
     } else if (toggleResult === 'unequipped') {
@@ -364,7 +343,7 @@ export default class DeckBuildScene extends Phaser.Scene {
 
   /**
    * Restores attack/defense card collection from backend.
-   * Each DB row becomes one card instance tagged with dbDeckCardID for sync.
+   * All cards go into both collection and deck (ordered by DB insertion order).
    */
   async hydrateCollection(player) {
     if (this.registry.get('authMode') !== 'online') return;
@@ -378,33 +357,17 @@ export default class DeckBuildScene extends Phaser.Scene {
       if (!card) return;
       card.dbDeckCardID = row.deckCardID;
       player.collection.push(card);
-      if (row.is_active && player.deck.length < player.maxDeckSize) {
-        player.deck.push(card);
-      }
+      player.deck.push(card);
     });
   }
 
-  /**
-   * Persists a freshly-added card to the backend and tags it with the
-   * returned deckCardID so future toggles can sync the right row.
-   */
   async persistNewCard(card, player) {
     if (this.registry.get('authMode') !== 'online') return;
     const cardID = getCardIDByName(card.name);
     if (!cardID) return;
-    const isActive = player.deck.includes(card);
-    const res = await addDeckCard(cardID, isActive);
+    const res = await addDeckCard(cardID, true);
     if (res.ok) {
       card.dbDeckCardID = res.data.deckCardID;
     }
-  }
-
-  /**
-   * Pushes an is_active change to the backend (fire-and-forget).
-   */
-  syncDeckCardActive(card, isActive) {
-    if (this.registry.get('authMode') !== 'online') return;
-    if (!card.dbDeckCardID) return;
-    setDeckCardActive(card.dbDeckCardID, isActive);
   }
 }

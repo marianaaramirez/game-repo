@@ -31,7 +31,7 @@ export default class CardThief extends BaseEnemy {
   useSkill(player, combatContext) {
     if (combatContext.playerDeck && combatContext.playerDeck.length > 0) {
       const idx = Math.floor(Math.random() * combatContext.playerDeck.length);
-      combatContext.lockedCardIndex = idx;
+      combatContext.lockedCard = combatContext.playerDeck[idx];
       return { message: `Card Thief steals "${combatContext.playerDeck[idx].name}"! Answer correctly to unlock!` };
     }
     return { message: 'Card Thief finds nothing to steal!' };
