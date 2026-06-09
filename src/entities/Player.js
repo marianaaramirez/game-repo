@@ -42,7 +42,7 @@ export default class Player extends BaseEntity {
     if (skinIndex === 0) {
       this.timerBonus = 3000;           // Warrior: +3s timer
     } else if (skinIndex === 1) {
-      this.mathDifficultyOffset = -2;   // Mage: easier math
+      this.mathDifficultyOffset = -3;   // Mage: easier math (batallas 1-4 = tier 1, boss = tier 2)
     } else if (skinIndex === 2) {
       this.rogueDouble = true;          // Rogue: 2nd-answer double
     }
