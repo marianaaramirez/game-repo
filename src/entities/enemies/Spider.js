@@ -54,7 +54,7 @@ export default class Spider extends BaseEnemy {
   useSkill(player, combatContext) {
     if (combatContext.playerDeck && combatContext.playerDeck.length > 0) {
       const idx = Math.floor(Math.random() * combatContext.playerDeck.length);
-      combatContext.disabledCardIndex = idx;
+      combatContext.disabledCard = combatContext.playerDeck[idx];
       return { message: `Spider uses Web Trap! Card "${combatContext.playerDeck[idx].name}" is disabled!` };
     }
     return { message: 'Spider tries Web Trap but has no target!' };

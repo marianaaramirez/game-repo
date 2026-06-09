@@ -133,69 +133,77 @@ function generateLevel1() {
 }
 
 /**
- * Shared exact-division generator (used by all World 2 tiers).
- * Builds the dividend backwards so the answer is always a whole number.
+ * Exact-division helper — builds dividend backwards so the answer is always whole.
+ * @param {number} minDiv  - minimum divisor
+ * @param {number} maxDiv  - maximum divisor
+ * @param {number} minQ    - minimum quotient
+ * @param {number} maxQ    - maximum quotient
  */
-function generateExactDivision() {
-  const divisor = randInt(2, 9);
-  let quotient  = randInt(2, 9);
-  let dividend  = divisor * quotient;
-  while (dividend < 10) {
-    quotient = randInt(2, 9);
-    dividend = divisor * quotient;
-  }
+function generateExactDivision(minDiv = 1, maxDiv = 5, minQ = 1, maxQ = 5) {
+  const divisor  = randInt(minDiv, maxDiv);
+  const quotient = randInt(minQ, maxQ);
+  const dividend = divisor * quotient;
   return { text: `${dividend} / ${divisor}`, answer: quotient, operation: OPERATIONS.DIVISION };
 }
 
 /**
- * World 2 — Tier 1: 1-digit × 1-digit multiplication only.
+ * World 2 — Tier 1: multiplication only, 1-digit (1–5), 1 sign.
+ * Example: 3 x 4
  */
 function generateW2Tier1() {
-  const a = randInt(1, 9);
-  const b = randInt(1, 9);
+  const a = randInt(1, 5);
+  const b = randInt(1, 5);
   return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
 }
 
 /**
- * World 2 — Tier 2: 1-digit × 2-digit (10–19) multiplication only.
+ * World 2 — Tier 2: multiplication OR division, 1-digit (1–5), 1 sign.
+ * Example: 4 x 3  or  15 / 5
  */
 function generateW2Tier2() {
-  const a = randInt(1, 9);
-  const b = randInt(10, 19);
-  return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
-}
-
-/**
- * World 2 — Tier 3: same as Tier 2 multiplication + 50% exact division.
- */
-function generateW2Tier3() {
   if (Math.random() < 0.5) {
-    const a = randInt(1, 9);
-    const b = randInt(10, 19);
+    const a = randInt(1, 5);
+    const b = randInt(1, 5);
     return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
   }
-  return generateExactDivision();
+  return generateExactDivision(1, 5, 1, 5);
 }
 
 /**
- * World 2 — Tier 4: 2-digit (11–20) × 1-digit multiplication only.
+ * World 2 — Tier 3: multiplication only, 1-digit (6–10), 1 sign.
+ * Example: 7 x 9
  */
-function generateW2Tier4() {
-  const a = randInt(11, 20);
-  const b = randInt(1, 9);
+function generateW2Tier3() {
+  const a = randInt(6, 10);
+  const b = randInt(6, 10);
   return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
 }
 
 /**
- * World 2 — Tier 5 (boss): Tier 4 multiplication + 50% exact division.
+ * World 2 — Tier 4: multiplication OR division, 2-digit operands (6–10), 1 sign.
+ * Example: 8 x 9  or  60 / 6
+ */
+function generateW2Tier4() {
+  if (Math.random() < 0.5) {
+    const a = randInt(6, 10);
+    const b = randInt(6, 10);
+    return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
+  }
+  return generateExactDivision(6, 10, 6, 10);
+}
+
+/**
+ * World 2 — Tier 5 (boss): multiplication OR division, 1-digit to 2-digit (11–15), 1 sign.
+ * Example: 7 x 13  or  65 / 5
  */
 function generateW2Tier5() {
   if (Math.random() < 0.5) {
-    const a = randInt(11, 20);
-    const b = randInt(1, 9);
+    const a = randInt(1, 9);
+    const b = randInt(11, 15);
     return { text: `${a} x ${b}`, answer: a * b, operation: OPERATIONS.MULTIPLICATION };
   }
-  return generateExactDivision();
+  // Division: divisor 1-9, quotient 11-15 → dividend is 2-digit product
+  return generateExactDivision(2, 9, 2, 15);
 }
 
 /**

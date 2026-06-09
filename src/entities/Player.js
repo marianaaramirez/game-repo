@@ -1,17 +1,20 @@
 /**
  * Player.js
  * Represents the player character. Extends BaseEntity with collection management,
- * deck building, skill card collection, leveling, and roguelike progression rules.
+ * deck ordering, skill card collection, leveling, and roguelike progression rules.
  *
  * Card model:
- *   - collection : every attack/defense card the player owns
- *   - deck       : the cards selected for combat, capped at maxDeckSize (4)
+ *   - collection : every attack/defense card the player owns (source of truth)
+ *   - deck       : ALL ATK/DEF cards in player-defined order. First 4 form the
+ *                  combat hand; the rest queue up. Cards cycle through the hand
+ *                  during combat (used card exits, next queued card enters).
  *   - skillCards : boss-reward skill cards, kept in a SEPARATE slot
- *                  (they do NOT count toward the 4-card deck limit)
+ *                  (they do NOT participate in cycling, limited to 2 uses/combat)
  *
  * Roguelike rules:
  *   - On win:   player levels up (max HP increases, HP fully restored)
- *   - On lose:  collection and deck are wiped, but all skill cards are kept
+ *   - On lose:  HP and level reset; collection and deck PRESERVED
+ *   - Wipe only happens via OptionsScene "Wipe Local Collection"
  *
  * AI tool used for code commenting: Claude (Anthropic)
  */
@@ -27,43 +30,32 @@ export default class Player extends BaseEntity {
     this.skinIndex     = skinIndex;
     this.level         = 1;
     this.collection    = [];
-    this.deck          = [];
+    this.deck          = [];  // ordered list of ALL ATK/DEF cards
     this.skillCards    = [];
     this.selectedSkill = null;
-    this.maxDeckSize   = 4;
-
 
     // --- Skin-based passive powers ---
-    // Warrior: +3s on every math problem timer
-    // Mage:    math difficulty tier shifted down (easier digit ranges per node)
-    // Rogue:   every 2nd successful answer deals double effect
-    this.timerBonus           = 0; // Extra ms added to math problem timer
-    this.mathDifficultyOffset = 0; // Negative = easier (shifts effective node tier down)
-    this.rogueDouble          = false; // Enables every-2nd-answer doubling
+    this.timerBonus           = 0;
+    this.mathDifficultyOffset = 0;
+    this.rogueDouble          = false;
 
     if (skinIndex === 0) {
-      // Warrior
-      this.timerBonus = 3000;
+      this.timerBonus = 3000;           // Warrior: +3s timer
     } else if (skinIndex === 1) {
-      // Mage
-      this.mathDifficultyOffset = -2;
+      this.mathDifficultyOffset = -2;   // Mage: easier math
     } else if (skinIndex === 2) {
-      // Rogue
-      this.rogueDouble = true;
+      this.rogueDouble = true;          // Rogue: 2nd-answer double
     }
   }
 
   /**
-   * Adds a card to the collection.
-   * If the deck still has free slots, the card is auto-selected into it
-   * so newly earned cards are usable right away.
+   * Adds a card to the collection AND appends it to the ordered deck.
+   * New cards always go to the end (queue position).
    * @param {BaseCard} card
    */
   addCard(card) {
     this.collection.push(card);
-    if (this.deck.length < this.maxDeckSize) {
-      this.deck.push(card);
-    }
+    this.deck.push(card);
   }
 
   /**
@@ -78,19 +70,29 @@ export default class Player extends BaseEntity {
   }
 
   /**
+   * Swaps two cards in the ordered deck by index.
+   * Used by DeckBuildScene to let the player reorder cards.
+   */
+  swapCardOrder(indexA, indexB) {
+    if (indexA < 0 || indexA >= this.deck.length) return;
+    if (indexB < 0 || indexB >= this.deck.length) return;
+    const temp = this.deck[indexA];
+    this.deck[indexA] = this.deck[indexB];
+    this.deck[indexB] = temp;
+  }
+
+  /**
    * Adds a skill card (obtained by defeating a boss).
    * Skill cards persist through defeats and use a separate slot.
-   * Duplicates (by name) are silently ignored so re-winning the same boss
-   * doesn't create UI duplicates in DeckBuildScene.
+   * Duplicates (by name) are silently ignored.
    * @param {BaseCard} card
-   * @returns {boolean} true if added, false if it was a duplicate
+   * @returns {boolean} true if added, false if duplicate
    */
   addSkillCard(card) {
     if (this.skillCards.some((c) => c.name === card.name)) {
       return false;
     }
     this.skillCards.push(card);
-    // Auto-equip the first skill card obtained so it's usable right away
     if (!this.selectedSkill) {
       this.selectedSkill = card;
     }
@@ -99,7 +101,6 @@ export default class Player extends BaseEntity {
 
   /**
    * Toggles the selected skill card for the next combat (max 1 slot).
-   * Clicking the already-equipped skill deselects it.
    * @param {BaseCard} card
    * @returns {string} 'equipped' | 'unequipped'
    */
@@ -113,34 +114,7 @@ export default class Player extends BaseEntity {
   }
 
   /**
-   * Toggles a card's presence in the active deck (used by the deck builder UI).
-   * @param {BaseCard} card
-   * @returns {string} 'added' | 'removed' | 'full' (deck already at max size)
-   */
-  toggleDeckCard(card) {
-    const i = this.deck.indexOf(card);
-    if (i >= 0) {
-      this.deck.splice(i, 1);
-      return 'removed';
-    }
-    if (this.deck.length >= this.maxDeckSize) {
-      return 'full';
-    }
-    this.deck.push(card);
-    return 'added';
-  }
-
-  /**
-   * Returns true if the given card is currently selected in the deck.
-   * @param {BaseCard} card
-   * @returns {boolean}
-   */
-  isInDeck(card) {
-    return this.deck.includes(card);
-  }
-
-  /**
-   * Returns a shallow copy of the selected deck.
+   * Returns a shallow copy of the ordered deck.
    * @returns {BaseCard[]}
    */
   getDeck() {
@@ -148,14 +122,15 @@ export default class Player extends BaseEntity {
   }
 
   /**
-   * Returns the combat deck: the selected cards (max 4) plus the most recently
-   * acquired skill card. The skill card occupies a separate slot and does not
-   * count toward the 4-card limit.
+   * Returns the initial combat hand (first 4 ATK/DEF) plus the equipped
+   * skill card. CombatScene uses this for the first draw, then manages
+   * cycling internally.
    * @returns {BaseCard[]}
    */
   getActiveDeck() {
+    const hand = this.deck.slice(0, 4);
     const activeSkill = this.selectedSkill ? [this.selectedSkill] : [];
-    return [...this.deck, ...activeSkill];
+    return [...hand, ...activeSkill];
   }
 
   /**
@@ -170,19 +145,17 @@ export default class Player extends BaseEntity {
 
   /**
    * Called when the player loses a combat OR abandons a run.
-   * Resets HP and level for a new run. Collection and deck PRESERVED.
-   * Card wipe only happens via the OptionsScene "Wipe Local Collection" button.
+   * Resets HP and level. Collection and deck PRESERVED.
    */
   onDefeat() {
     this.hp    = this.maxHp;
     this.level = 1;
-    // collection, deck, skillCards intentionally NOT cleared
   }
 
   /**
    * Hard wipe — clears collection and deck entirely.
    * Used only by the manual wipe button in OptionsScene.
-   * Skill cards preserved (separate slot, never wiped).
+   * Skill cards preserved.
    */
   wipeCollection() {
     this.collection = [];
@@ -199,11 +172,10 @@ export default class Player extends BaseEntity {
   }
 
   /**
-   * Resets per-level use counters on every card the player owns.
-   * Called when entering a new level (LevelSelectScene).
+   * Resets per-combat use counters. Only skill cards have use limits;
+   * ATK/DEF cards cycle instead of being consumed.
    */
   resetCardUses() {
-    this.collection.forEach((c) => c.resetUses && c.resetUses());
     this.skillCards.forEach((c) => c.resetUses && c.resetUses());
   }
 }

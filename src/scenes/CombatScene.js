@@ -131,48 +131,51 @@ export default class CombatScene extends Phaser.Scene {
     this.skinKey = skins[this.player.skinIndex] || 'warrior';
     this.createAnimations();
 
-    // Per-combat reset: every battle starts with full card uses (3 ATK/DEF, 2 skill).
-    // Skipped on combat restore (resumed saves preserve usesRemaining from snapshot).
+    // Per-combat reset: skill card uses (2 per combat). ATK/DEF cycle instead.
     if (!this.combatRestore && this.player.resetCardUses) {
       this.player.resetCardUses();
     }
+
+    // --- Card cycling state ---
+    // ATK/DEF cards cycle through the hand. First 4 = hand, rest = queue.
+    // When a card is used, it exits the hand → usedPile. Next card from queue enters.
+    // When queue is empty, usedPile recycles back into queue.
+    const orderedCards = [...this.player.deck]; // copy to avoid mutating player state
+    this.cardHand  = orderedCards.slice(0, 4);
+    this.cardQueue = orderedCards.slice(4);
+    this.usedPile  = [];
 
     // --- Combat state ---
     this.combatState = CombatSystem.COMBAT_STATE.SELECT_CARD;
     this.currentProblem = null;
     this.timerStartTime = 0;
-    // Time allowed per problem — higher levels get more time (harder math)
-    // Rogue passive adds extra time via player.timerBonus
     this.timerDuration = TimerSystem.getDuration(this.worldLevel) + (this.player.timerBonus || 0);
     this.selectedCard = null;
-    this.activeDefense = 0;   // Defense value blocks enemy damage this turn
-    this.inputText = '';  // Accumulates keyboard digits for the answer field
+    this.activeDefense = 0;
+    this.inputText = '';
 
     /**
      * combatContext — mutable object shared with enemy skill methods.
-     * Enemy useSkill() implementations write flags here so CombatScene
-     * can apply the modifiers at the right point in the turn sequence.
      */
     this.combatContext = {
-      cardEffectivenessModifier: 1,    // Multiplier on card effect (Slime reduces this)
-      enemyDamageReduction: 0,    // Flat damage reduction for player (unused by default)
-      disabledCardIndex: -1,    // Card index grayed out (Spider web trap)
-      lockedCardIndex: -1,    // Card index locked (CardThief steal)
-      enemyStrikesFirst: false,  // PredatorPlant quick strike
-      enemyDoubleAction: false,  // VampireKing attacks twice
-      enemyDamageBoost: 1,  // Multiplier on enemy damage (BoneMage)
-      timerReduction: 0,  // Subtract ms from elapsed (EvilBat slows timer)
-      enemySkipAttack: false,  // Titan charges — skip normal attack
-      swapRandomCard: false,  // Swapper chaos — card gets randomized
-      secondChance: false,  // SecondChance skill — allow one retry on wrong answer
-      rogueCounter: 0,  // Rogue passive — counts successful answers
-      // --- Defense card special flags ---
-      playerRegen: 0,  // Regen card — turns of HoT remaining
-      playerRegenAmount: 0,  // Regen card — HP per turn
-      tauntForceSkill: false,  // Taunt card — 50% chance to force enemy skill this turn
-      evadeChance: 0,  // Evade card — chance to dodge enemy attack this turn
-      barrierTurns: 0,  // Barrier card — extra enemy turns activeDefense persists
-      playerDeck: this.player.getActiveDeck(),
+      cardEffectivenessModifier: 1,
+      enemyDamageReduction: 0,
+      disabledCard: null,         // Card ref grayed out (Spider web trap)
+      lockedCard: null,           // Card ref locked (CardThief steal)
+      enemyStrikesFirst: false,
+      enemyDoubleAction: false,
+      enemyDamageBoost: 1,
+      timerReduction: 0,
+      enemySkipAttack: false,
+      swapRandomCard: false,
+      secondChance: false,
+      rogueCounter: 0,
+      playerRegen: 0,
+      playerRegenAmount: 0,
+      tauntForceSkill: false,
+      evadeChance: 0,
+      barrierTurns: 0,
+      playerDeck: this.buildVisibleDeck(),
     };
 
     // --- Backend tracking (separate from combatContext so it isn't reset by enemy turn) ---
@@ -393,49 +396,52 @@ export default class CombatScene extends Phaser.Scene {
       const x = startX + i * (cardWidth + 10);
       const y = 490;
 
-      // Gray out cards affected by enemy skills (spider web, card thief)
-      // OR cards that have run out of uses for this level
+      // Gray out cards affected by enemy skills or depleted skill cards
       const isDepleted = card.isDepleted && card.isDepleted();
       const isDisabled = card.disabled
         || isDepleted
-        || i === this.combatContext.disabledCardIndex
-        || i === this.combatContext.lockedCardIndex;
+        || card === this.combatContext.disabledCard
+        || card === this.combatContext.lockedCard;
 
       const bg = this.add.rectangle(x, y, cardWidth, 120,
         isDisabled ? 0x333333 : card.getColor(), isDisabled ? 0.3 : 0.7)
         .setStrokeStyle(2, isDisabled ? 0x444444 : 0xffffff);
+      this.cardObjects.push(bg);
 
       // Type badge (ATK / DEF / SKL)
       let typeLabel = 'ATK';
       if (card.type === CARD_TYPES.DEFENSE) typeLabel = 'DEF';
-      if (card.type === CARD_TYPES.SKILL) typeLabel = 'SKL';
+      if (card.type === CARD_TYPES.SKILL)   typeLabel = 'SKL';
 
-      this.add.text(x, y - 45, typeLabel, {
+      const typeTxt = this.add.text(x, y - 45, typeLabel, {
         fontSize: '10px', fontFamily: 'Arial Black', color: '#ffffff',
         backgroundColor: '#00000088', padding: { x: 3, y: 1 },
       }).setOrigin(0.5);
+      this.cardObjects.push(typeTxt);
 
-      this.add.text(x, y - 15, card.name, {
+      const nameTxt = this.add.text(x, y - 15, card.name, {
         fontSize: '10px', fontFamily: 'Arial Black', color: '#ffffff',
         wordWrap: { width: cardWidth - 8 }, align: 'center',
       }).setOrigin(0.5);
+      this.cardObjects.push(nameTxt);
 
-      // Skill cards have baseValue 0, so omit the power label for them
       if (card.baseValue > 0) {
-        this.add.text(x, y + 15, `${card.baseValue}`, {
+        const valTxt = this.add.text(x, y + 15, `${card.baseValue}`, {
           fontSize: '18px', fontFamily: 'Arial Black', color: '#ffdd88',
         }).setOrigin(0.5);
+        this.cardObjects.push(valTxt);
       }
 
-      // Per-level uses counter (X/Y). Red when depleted.
+      // Uses counter — only for skill cards (maxUsesPerLevel > 0)
       if (card.maxUsesPerLevel) {
         const usesColor = isDepleted ? '#ff4444'
           : card.usesRemaining === 1 ? '#ffaa00'
-            : '#88ff88';
-        this.add.text(x, y + 42, `${card.usesRemaining}/${card.maxUsesPerLevel}`, {
+          : '#88ff88';
+        const usesTxt = this.add.text(x, y + 42, `${card.usesRemaining}/${card.maxUsesPerLevel}`, {
           fontSize: '11px', fontFamily: 'Arial Black', color: usesColor,
           backgroundColor: '#00000099', padding: { x: 4, y: 1 },
         }).setOrigin(0.5);
+        this.cardObjects.push(usesTxt);
       }
 
       // Only interactive cards in SELECT_CARD state get pointer events
@@ -444,7 +450,7 @@ export default class CombatScene extends Phaser.Scene {
 
         bg.on('pointerover', () => {
           bg.setStrokeStyle(3, 0xffcc00);
-          bg.setY(y - 10); // Slight lift on hover for visual feedback
+          bg.setY(y - 10);
         });
 
         bg.on('pointerout', () => {
@@ -456,8 +462,6 @@ export default class CombatScene extends Phaser.Scene {
           this.selectCard(card, i);
         });
       }
-
-      this.cardObjects.push(bg);
     });
   }
 
@@ -517,6 +521,10 @@ export default class CombatScene extends Phaser.Scene {
       }
       this.trackCardUsed(card);
       if (card.consumeUse) card.consumeUse();
+      // Cycle ATK/DEF cards out of hand after use
+      if (card.type !== CARD_TYPES.SKILL) {
+        this.cycleCard(card);
+      }
       const hpBefore = this.enemy.hp;
       const cardResult = card.apply(this.player, this.enemy, effectValue, this.combatContext);
       if (hpBefore > this.enemy.hp) {
@@ -627,6 +635,10 @@ export default class CombatScene extends Phaser.Scene {
 
       this.trackCardUsed(this.selectedCard);
       if (this.selectedCard.consumeUse) this.selectedCard.consumeUse();
+      // Cycle ATK/DEF cards out of hand after use (skill cards don't cycle)
+      if (this.selectedCard.type !== CARD_TYPES.SKILL) {
+        this.cycleCard(this.selectedCard);
+      }
       const hpBefore = this.enemy.hp;
       const cardResult = this.selectedCard.apply(this.player, this.enemy, effectValue, this.combatContext);
       if (this.selectedCard.type === CARD_TYPES.ATTACK) {
@@ -646,13 +658,12 @@ export default class CombatScene extends Phaser.Scene {
       this.messageText.setText(`Correct!${rogueMsg} ${cardResult.message}`);
 
       // Store defense value so enemy attack this turn can be reduced
-      // Use cardResult.defense (reflect card returns 0 → no block, just reflects)
       if (this.selectedCard.type === CARD_TYPES.DEFENSE) {
         this.activeDefense = cardResult.defense !== undefined ? cardResult.defense : effectValue;
       }
 
       // Unlock any CardThief-locked card (lock persists until a correct answer)
-      this.combatContext.lockedCardIndex = -1;
+      this.combatContext.lockedCard = null;
     } else {
       // SecondChance: one free retry on wrong answer or timeout
       if (this.combatContext.secondChance) {
@@ -702,9 +713,9 @@ export default class CombatScene extends Phaser.Scene {
     this.combatState = CombatSystem.COMBAT_STATE.ENEMY_TURN;
 
     // Reset Spider's disable flag BEFORE enemy acts — it only lasts 1 player turn.
-    // CardThief's lockedCardIndex is NOT reset here: it persists until the player
+    // CardThief's lockedCard is NOT reset here: it persists until the player
     // answers a math problem correctly (handled in submitAnswer).
-    this.combatContext.disabledCardIndex = -1;
+    this.combatContext.disabledCard = null;
 
     // Bleed tick — apply DoT damage to enemy at the start of its turn
     let bleedMsg = '';
@@ -833,6 +844,44 @@ export default class CombatScene extends Phaser.Scene {
     this.time.delayedCall(1500, () => {
       this.startNewTurn();
     });
+  }
+
+  // ============================================================
+  // Card cycling (ATK/DEF cards rotate through hand)
+  // ============================================================
+
+  /**
+   * Builds the visible deck: current hand (ATK/DEF) + equipped skill card.
+   * Called when hand composition changes (after cycling).
+   */
+  buildVisibleDeck() {
+    const activeSkill = this.player.selectedSkill ? [this.player.selectedSkill] : [];
+    return [...this.cardHand, ...activeSkill];
+  }
+
+  /**
+   * Cycles a used ATK/DEF card out of the hand:
+   *   1. Remove from hand → push to usedPile
+   *   2. If queue has cards → pull next into hand
+   *   3. If queue empty → recycle usedPile into queue → pull next
+   * Updates combatContext.playerDeck to reflect the new hand.
+   */
+  cycleCard(card) {
+    const idx = this.cardHand.indexOf(card);
+    if (idx >= 0) this.cardHand.splice(idx, 1);
+    this.usedPile.push(card);
+
+    // Refill hand from queue; recycle usedPile if queue is exhausted
+    if (this.cardQueue.length === 0 && this.usedPile.length > 0) {
+      this.cardQueue = [...this.usedPile];
+      this.usedPile = [];
+    }
+    if (this.cardQueue.length > 0) {
+      this.cardHand.push(this.cardQueue.shift());
+    }
+
+    // Update visible deck for drawCards
+    this.combatContext.playerDeck = this.buildVisibleDeck();
   }
 
   /**
@@ -1260,8 +1309,8 @@ export default class CombatScene extends Phaser.Scene {
           timerReduction: this.combatContext.timerReduction,
           enemyDoubleAction: this.combatContext.enemyDoubleAction,
           enemySkipAttack: this.combatContext.enemySkipAttack,
-          disabledCardIndex: this.combatContext.disabledCardIndex,
-          lockedCardIndex: this.combatContext.lockedCardIndex,
+          disabledCard: null,  // card refs can't serialize; reset on restore
+          lockedCard: null,
           secondChance: this.combatContext.secondChance,
           clearMind: this.combatContext.clearMind,
           doublePower: this.combatContext.doublePower,
