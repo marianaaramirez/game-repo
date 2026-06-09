@@ -966,7 +966,10 @@ export default class CombatScene extends Phaser.Scene {
     this.time.delayedCall(2500, () => {
       this.player.onDefeat();              // HP/level reset, cards preserved
       this.registry.set('currentMap', null); // Force new map on next run
-      this.scene.start('HomeScene');
+      this.scene.start('DefeatScene', {
+        enemyName:  this.enemy.name,
+        worldLevel: this.worldLevel,
+      });
     });
   }
 
