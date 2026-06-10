@@ -111,3 +111,5 @@ router.get('/me', authMiddleware, async (req, res) => {
 });
 
 export default router;
+
+// AI tool used for code commenting: Claude (Anthropic)

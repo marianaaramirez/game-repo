@@ -61,3 +61,5 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
 });
+
+// AI tool used for code commenting: Claude (Anthropic)

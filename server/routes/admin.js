@@ -301,3 +301,5 @@ router.get('/admin/player/:playerID/stats', adminAuth, async (req, res) => {
 });
 
 export default router;
+
+// AI tool used for code commenting: Claude (Anthropic)

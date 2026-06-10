@@ -165,3 +165,5 @@ CREATE TABLE Combat (
   FOREIGN KEY (cardID)    REFERENCES Card(cardID),
   FOREIGN KEY (problemID) REFERENCES MathProblem(problemID)
 );
+
+-- AI tool used for code commenting: Claude (Anthropic)

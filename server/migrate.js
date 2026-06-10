@@ -125,3 +125,5 @@ run().catch((err) => {
   console.error('[migrate] FAILED:', err.message);
   process.exit(1);
 });
+
+// AI tool used for code commenting: Claude (Anthropic)

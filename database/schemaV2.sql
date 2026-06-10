@@ -147,3 +147,5 @@ CREATE TABLE CardsUsed (
   FOREIGN KEY (combatID) REFERENCES Combat(combatID), 
   FOREIGN KEY (cardID) REFERENCES Card(cardID)
 );
+
+-- AI tool used for code commenting: Claude (Anthropic)

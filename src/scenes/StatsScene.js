@@ -205,3 +205,5 @@ export default class StatsScene extends Phaser.Scene {
     return `${m}m ${sec}s`;
   }
 }
+
+// AI tool used for code commenting: Claude (Anthropic)

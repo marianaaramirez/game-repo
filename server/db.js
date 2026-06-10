@@ -39,3 +39,5 @@ pool.getConnection()
   });
 
 export default pool;
+
+// AI tool used for code commenting: Claude (Anthropic)

@@ -247,3 +247,5 @@ export default class AdminLoginScene extends Phaser.Scene {
     this.completeAuth(res.data);
   }
 }
+
+// AI tool used for code commenting: Claude (Anthropic)

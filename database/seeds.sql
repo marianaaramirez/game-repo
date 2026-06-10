@@ -2,6 +2,8 @@
 --  Math Smash: Card Adventure -- Seed Data
 --  Run AFTER schemaV3.sql
 --  Inserts all static game data: maps, enemies, cards
+--
+--  AI tool used for code generation: Claude (Anthropic)
 -- ============================================================
 
 USE mathsmash;
@@ -126,3 +128,5 @@ INSERT INTO Card (name, type, world_level, description, power_value, special) VA
   ('Clear Mind',    'skill', 0, 'Next card does not require activation',    0, 'clear_mind'),
   ('Double Power',  'skill', 0, 'Doubles the points of next card',          0, 'double_power'),
   ('Vitality Boost','skill', 0, 'Gives 10% more life',                      0, 'vitality_boost');
+
+-- AI tool used for code commenting: Claude (Anthropic)

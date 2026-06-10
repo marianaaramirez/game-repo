@@ -3,6 +3,8 @@
  * Integration tests for the Math Smash backend API.
  * Uses Node's built-in test runner (Node 18+) + global fetch.
  *
+ * AI tool used for code generation: Claude (Anthropic)
+ *
  * Run:  npm run test:api
  *
  * Prerequisites:
@@ -773,3 +775,5 @@ after(() => {
   console.log('\n[cleanup] test user remains in DB:', state.username);
   console.log('          (drop manually if needed: DELETE FROM Player WHERE username=?)');
 });
+
+// AI tool used for code commenting: Claude (Anthropic)

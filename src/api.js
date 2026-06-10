@@ -146,3 +146,5 @@ export const adminGetMe    = ()                    => request('GET',  '/admin/me
 export const adminGetStats = ()                    => request('GET',  '/admin/stats', null, 'admin');
 export const adminGetPlayers     = ()              => request('GET', '/admin/players', null, 'admin');
 export const adminGetPlayerStats = (playerID)      => request('GET', `/admin/player/${playerID}/stats`, null, 'admin');
+
+// AI tool used for code commenting: Claude (Anthropic)

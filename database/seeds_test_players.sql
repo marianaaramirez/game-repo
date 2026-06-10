@@ -357,3 +357,5 @@ INSERT INTO Combat (runID, enemyID, problemID, timer_result, damage_dealt, comba
 -- Leaderboard order: DragonSlayer99 (4 wins) > SpeedRunner (3 wins) >
 --                    MathWizard (2 wins) > NoviceHero (0 wins)
 -- ============================================================
+
+-- AI tool used for code commenting: Claude (Anthropic)
