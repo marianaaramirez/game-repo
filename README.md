@@ -233,7 +233,7 @@ LoginScene → "ADMIN LOGIN" → AdminLoginScene → AdminMenuScene
 | Skin | Passive Ability |
 |------|----------------|
 | **Warrior** (blue) | +3 seconds on every math problem timer |
-| **Mage** (purple) | Math difficulty reduced by 2 tiers |
+| **Mage** (purple) | Math difficulty reduced by 3 tiers (battles 1-4 = tier 1, boss = tier 2) |
 | **Rogue** (green) | Every 2nd correct answer deals double effect |
 
 ### Worlds & Math Difficulty
@@ -342,75 +342,91 @@ Administrators have a separate login and see 6 global analytics panels:
 
 ```
 game-repo/
-├── src/                           # Frontend (Phaser)
-│   ├── main.js                    # Entry point — Phaser config + scene registration
-│   ├── api.js                     # Backend API client (player + admin tokens)
-│   ├── scenes/                    # All game screens (15 scenes)
-│   │   ├── LoginScene.js          # Player login/register + admin login button
-│   │   ├── HomeScene.js           # Main menu (Play, Load, Instructions, Stats, Options)
-│   │   ├── CharSelectScene.js     # Character skin selection (Warrior/Mage/Rogue)
-│   │   ├── InstructionsScene.js   # Game controls and mechanics reference
-│   │   ├── LevelSelectScene.js    # World selection (3 worlds)
-│   │   ├── DeckBuildScene.js      # Deck builder (max 4 cards + 1 skill)
-│   │   ├── MapScene.js            # Roguelike node map (Battle/Chest/Boss)
-│   │   ├── CombatScene.js         # Turn-based math combat
-│   │   ├── RewardScene.js         # Post-combat card/heal rewards
-│   │   ├── StatsScene.js          # Player stats + leaderboard
-│   │   ├── OptionsScene.js        # Settings, wipe collection, about
-│   │   ├── SavedGamesScene.js     # Pause/resume saved runs
-│   │   ├── AdminLoginScene.js     # Admin login/register
-│   │   ├── AdminMenuScene.js      # Admin dashboard (6 report panels)
-│   │   └── AdminPlayerStatsScene.js # Admin view of individual player stats
-│   ├── systems/                   # Game logic
-│   │   ├── CombatSystem.js        # Turn evaluation, win/lose checks
-│   │   ├── MathSystem.js          # Problem generation (3 worlds × 5 tiers)
-│   │   ├── MapSystem.js           # Map generation (hand-authored + procedural)
-│   │   └── TimerSystem.js         # Timer zones (green/yellow/red)
-│   ├── entities/                  # Game entities
-│   │   ├── BaseEntity.js          # Shared HP/damage logic
-│   │   ├── BaseEnemy.js           # Enemy base class (30% skill / 70% attack)
-│   │   ├── Player.js              # Player state, deck, collection, leveling
-│   │   └── enemies/               # 11 enemy implementations
-│   ├── cards/                     # Card system
-│   │   ├── BaseCard.js            # Base class (uses per combat, depleted checks)
-│   │   ├── AttackCard.js          # 6 attack specials × 3 worlds
-│   │   ├── DefenseCard.js         # 8 defense specials × 3 worlds
-│   │   ├── SkillCard.js           # 5 boss-reward skill cards
-│   │   └── CardFactory.js         # Starter deck + reward card generation
+├── src/                              # Frontend (Phaser)
+│   ├── main.js                       # Entry point — Phaser config + scene registration
+│   ├── api.js                        # Backend API client (player + admin tokens)
+│   ├── scenes/                       # All game screens (17 scenes)
+│   │   ├── LoginScene.js             # Player login/register + admin login button
+│   │   ├── HomeScene.js              # Main menu (Play, Load, Instructions, Stats, Options)
+│   │   ├── CharSelectScene.js        # Character skin selection (Warrior/Mage/Rogue)
+│   │   ├── InstructionsScene.js      # Game controls and mechanics reference
+│   │   ├── LevelSelectScene.js       # World selection (3 worlds)
+│   │   ├── DeckBuildScene.js         # Card order builder — cycling queue system
+│   │   ├── MapScene.js               # Roguelike node map (Battle/Chest/Boss)
+│   │   ├── CombatScene.js            # Turn-based math combat with card cycling
+│   │   ├── RewardScene.js            # Post-combat card/heal rewards (no duplicates)
+│   │   ├── DefeatScene.js            # Defeat screen with run stats + retry/menu buttons
+│   │   ├── StatsScene.js             # Player stats + leaderboard
+│   │   ├── OptionsScene.js           # Settings, wipe collection, about
+│   │   ├── SavedGamesScene.js        # Pause/resume saved runs
+│   │   ├── CreditsScene.js           # Credits screen
+│   │   ├── AdminLoginScene.js        # Admin login/register (separate auth flow)
+│   │   ├── AdminMenuScene.js         # Admin dashboard (6 report panels)
+│   │   └── AdminPlayerStatsScene.js  # Admin view of individual player stats
+│   ├── systems/                      # Game logic
+│   │   ├── CombatSystem.js           # Turn evaluation, win/lose checks
+│   │   ├── MathSystem.js             # Problem generation (3 worlds × 5 tiers per skin)
+│   │   ├── MapSystem.js              # Map generation (hand-authored + procedural)
+│   │   └── TimerSystem.js            # Timer zones (green/yellow/red)
+│   ├── entities/                     # Game entities
+│   │   ├── BaseEntity.js             # Shared HP/damage logic
+│   │   ├── BaseEnemy.js              # Enemy base class (30% skill / 70% attack)
+│   │   ├── Player.js                 # Player state, ordered deck, cycling, leveling
+│   │   └── enemies/                  # 11 enemy implementations
+│   │       ├── EnemyFactory.js       # Random/boss/trap enemy spawning
+│   │       ├── Slime.js              # Reduces card effectiveness 10%
+│   │       ├── Spider.js             # Disables 1 random card
+│   │       ├── Skeleton.js           # 5 direct damage bypassing defense
+│   │       ├── Golem.js              # 50% damage reduction shield
+│   │       ├── PredatorPlant.js      # Strikes first if player is slow
+│   │       ├── EvilBat.js            # Reduces timer by 2 seconds
+│   │       ├── CardThief.js          # Locks 1 card until correct answer
+│   │       ├── Swapper.js            # Swaps 1 card temporarily
+│   │       ├── VampireKing.js        # Boss W1 — double action
+│   │       ├── BoneMage.js           # Boss W2 — damage boost
+│   │       └── Titan.js              # Boss W3 — 2-turn charge smash
+│   ├── cards/                        # Card system
+│   │   ├── BaseCard.js               # Base class (cycling, skill use limits)
+│   │   ├── AttackCard.js             # 6 per world × 3 worlds (18 ATK total)
+│   │   ├── DefenseCard.js            # 8 per world × 3 worlds (24 DEF total)
+│   │   ├── SkillCard.js              # 5 boss-reward skill cards (2 uses/combat)
+│   │   └── CardFactory.js            # Starter deck + unique reward card generation
 │   └── ui/
-│       └── uiHelpers.js           # Shared UI (badge, loading, confirm, toast, back)
-├── server/                        # Backend (Express)
-│   ├── index.js                   # Express app entry (mounts all routes)
-│   ├── db.js                      # MySQL2 connection pool
-│   ├── migrate.js                 # DB setup / migration runner
-│   ├── .env                       # Environment variables (NOT committed)
-│   ├── .env.example               # Template for .env
+│       └── uiHelpers.js              # Shared UI (badge, loading, confirm, toast, back)
+├── server/                           # Backend (Express)
+│   ├── index.js                      # Express app entry (mounts all routes)
+│   ├── db.js                         # MySQL2 connection pool
+│   ├── migrate.js                    # DB setup / migration runner
+│   ├── .env                          # Environment variables (NOT committed)
+│   ├── .env.example                  # Template for .env
 │   ├── middleware/
-│   │   ├── auth.js                # Player JWT verification
-│   │   └── adminAuth.js           # Admin JWT verification (role check)
+│   │   ├── auth.js                   # Player JWT verification
+│   │   └── adminAuth.js              # Admin JWT verification (role: 'admin' check)
 │   └── routes/
-│       ├── auth.js                # /register /login /me
-│       ├── admin.js               # /admin/register /admin/login /admin/stats /admin/players
-│       ├── run.js                 # Run CRUD (play session)
-│       ├── combat.js              # /combat /problem
-│       ├── catalog.js             # /cards /enemies /maps (public)
-│       ├── stats.js               # /stats /leaderboard + computePlayerStats()
-│       ├── skillDeck.js           # Skill card persistence
-│       ├── deck.js                # Attack/defense collection
-│       ├── player.js              # Player profile (skin, cleared levels)
-│       └── save.js                # Pause / resume snapshots
+│       ├── auth.js                   # /register /login /me
+│       ├── admin.js                  # /admin/* — auth, global stats, player list
+│       ├── run.js                    # Run CRUD (play session)
+│       ├── combat.js                 # /combat /problem
+│       ├── catalog.js                # /cards /enemies /maps (public)
+│       ├── stats.js                  # /stats /leaderboard + computePlayerStats()
+│       ├── skillDeck.js              # Skill card persistence
+│       ├── deck.js                   # Attack/defense collection
+│       ├── player.js                 # Player profile (skin, cleared levels)
+│       └── save.js                   # Pause / resume snapshots
 ├── database/
-│   ├── schemaV3.sql               # Database schema
-│   ├── seeds.sql                  # Static catalog (maps, enemies, cards)
-│   ├── seeds_test_players.sql     # Test data (4 sample players with stats)
+│   ├── schemaV3.sql                  # Database schema (current)
+│   ├── seeds.sql                     # Static catalog (maps, enemies, cards)
+│   ├── seeds_test_players.sql        # Test data — 4 sample players with full stats
 │   └── migrations/
 │       ├── 001_deckcard_instance_pk.sql
 │       ├── 002_deck_unique_player.sql
 │       ├── 003_run_save.sql
-│       └── 004_admin.sql          # Admin accounts table
+│       └── 004_admin.sql             # Admin accounts table
 ├── tests/
-│   └── api.test.js                # Backend integration tests
-├── index.html                     # HTML entry (Vite serves this)
+│   └── api.test.js                   # Backend integration tests (AI-generated)
+├── CARTAS.txt                        # Full card list with mechanics description (ES)
+├── INSTRUCCIONES.txt                 # Setup and run guide in Spanish
+├── index.html                        # HTML entry (Vite serves this)
 ├── package.json
 ├── vite.config.js
 └── .gitignore
