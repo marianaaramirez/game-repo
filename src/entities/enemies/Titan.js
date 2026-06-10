@@ -43,10 +43,10 @@ export default class Titan extends BaseEnemy {
       },
 
       anims: {
-        Idle: { start: 8, end: 11, fps: 8, loop: true },
-        Attack: { start: 16, end: 23, fps: 12, loop: false },
+        Idle: { start: 8, end: 11, fps: 6, loop: true },
+        Attack: { start: 16, end: 23, fps: 8, loop: false },
         Hurt: { start: 12, end: 17, fps: 10, loop: false },
-        Death: { start: 16, end: 23, fps: 8, loop: false }
+        Death: { start: 16, end: 23, fps: 4, loop: false }
       }
     };
   }

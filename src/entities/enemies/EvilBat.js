@@ -42,7 +42,7 @@ export default class EvilBat extends BaseEnemy {
         Idle: { start: 8, end: 11, fps: 6, loop: true },
         Attack: { start: 12, end: 17, fps: 10, loop: false },
         Hurt: { start: 8, end: 11, fps: 6, loop: false },
-        Death: { start: 20, end: 29, fps: 6, loop: false }
+        Death: { start: 20, end: 29, fps: 4, loop: false }
       }
     };
   }

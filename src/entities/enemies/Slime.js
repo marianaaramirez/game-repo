@@ -41,7 +41,7 @@ export default class Slime extends BaseEnemy {
         Idle: { start: 12, end: 17, fps: 10, loop: true },
         Attack: { start: 20, end: 29, fps: 6, loop: false },
         Hurt: { start: 10, end: 14, fps: 8, loop: false },
-        Death: { start: 20, end: 29, fps: 6, loop: false }
+        Death: { start: 20, end: 29, fps: 4, loop: false }
       }
     };
   }

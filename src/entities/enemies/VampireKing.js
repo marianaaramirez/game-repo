@@ -38,10 +38,10 @@ export default class VampireKing extends BaseEnemy {
       },
 
       anims: {
-        Idle: { start: 8, end: 11, fps: 8, loop: true },
-        Attack: { start: 24, end: 35, fps: 12, loop: false },
-        Hurt: { start: 8, end: 11, fps: 10, loop: false },
-        Death: { start: 20, end: 29, fps: 8, loop: false }
+        Idle: { start: 8, end: 11, fps: 6, loop: true },
+        Attack: { start: 24, end: 35, fps: 8, loop: false },
+        Hurt: { start: 8, end: 11, fps: 6, loop: false },
+        Death: { start: 20, end: 29, fps: 4, loop: false }
       }
     };
   }

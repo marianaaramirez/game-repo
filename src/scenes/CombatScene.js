@@ -48,6 +48,25 @@ import rogueAttack from '../assets/Player_sprites/Rogue/rogue_Attack.png';
 import rogueHurt from '../assets/Player_sprites/Rogue/rogue_Hurt.png';
 import rogueDeath from '../assets/Player_sprites/Rogue/rogue_Death.png';
 
+import temple1 from '../assets/Backgrounds/Temple/Temple_1.png';
+import temple2 from '../assets/Backgrounds/Temple/Temple_2.png';
+import temple3 from '../assets/Backgrounds/Temple/Temple_3.png';
+import temple4 from '../assets/Backgrounds/Temple/Temple_4.png';
+import temple5 from '../assets/Backgrounds/Temple/Temple_5.png';
+
+import castle1 from '../assets/Backgrounds/Castle/Castle_1.png';
+import castle2 from '../assets/Backgrounds/Castle/Castle_2.png';
+import castle3 from '../assets/Backgrounds/Castle/Castle_3.png';
+import castle4 from '../assets/Backgrounds/Castle/Castle_4.png';
+import castle5 from '../assets/Backgrounds/Castle/Castle_5.png';
+
+import wasteland1 from '../assets/Backgrounds/Wasteland/Wasteland_1.png';
+import wasteland2 from '../assets/Backgrounds/Wasteland/Wasteland_2.png';
+import wasteland3 from '../assets/Backgrounds/Wasteland/Wasteland_3.png';
+import wasteland4 from '../assets/Backgrounds/Wasteland/Wasteland_4.png';
+import wasteland5 from '../assets/Backgrounds/Wasteland/Wasteland_5.png';
+
+
 const SPRITES = {
   warrior: {
     Idle: warriorIdle,
@@ -84,6 +103,25 @@ export default class CombatScene extends Phaser.Scene {
   }
 
   preload() {
+
+    this.load.image('world1_1', temple1);
+    this.load.image('world1_2', temple2);
+    this.load.image('world1_3', temple3);
+    this.load.image('world1_4', temple4);
+    this.load.image('world1_5', temple5);
+
+    this.load.image('world2_1', castle1);
+    this.load.image('world2_2', castle2);
+    this.load.image('world2_3', castle3);
+    this.load.image('world2_4', castle4);
+    this.load.image('world2_5', castle5);
+
+    this.load.image('world3_1', wasteland1);
+    this.load.image('world3_2', wasteland2);
+    this.load.image('world3_3', wasteland3);
+    this.load.image('world3_4', wasteland4);
+    this.load.image('world3_5', wasteland5);
+
     Object.entries(SPRITES).forEach(([skin, animations]) => {
       Object.entries(animations).forEach(([anim, asset]) => {
         this.load.spritesheet(
@@ -120,7 +158,13 @@ export default class CombatScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#0a0a1a');
+    //this.cameras.main.setBackgroundColor('#0a0a1a');
+    const bgKey = `world${this.worldLevel}_${this.battleNumber}`;
+
+    this.add.image(400, 300, bgKey)
+      .setDisplaySize(800, 600)
+      .setDepth(-100);
+
     // Pull shared state from global registry
     this.player = this.registry.get('player');
     this.enemy = this.registry.get('currentEnemy');
@@ -292,40 +336,40 @@ export default class CombatScene extends Phaser.Scene {
    */
   drawBattleUI() {
     // --- Player side (left) ---
-    this.add.text(120, 30, this.player.name, {
-      fontSize: '18px', fontFamily: 'Arial Black', color: '#44aaff',
+    this.add.text(120, 245, this.player.name, {
+      fontSize: '18px', fontFamily: 'Arial Black', color: '#44aaff',stroke: '#000000',strokeThickness: 4,
     }).setOrigin(0.5);
 
     const skinMap = ['warrior', 'mage', 'rogue'];
     const key = skinMap[this.player.skinIndex] || 'warrior';
 
-    this.playerSprite = this.add.sprite(120, 120, `${this.skinKey}_Idle`);
+    this.playerSprite = this.add.sprite(120, 304, `${this.skinKey}_Idle`);
     this.playerSprite.setScale(4);
     this.playerSprite.play(`${this.skinKey}_Idle`);
 
     // Player HP bar — background track + colored fill
-    this.playerHpBar = this.add.rectangle(120, 190, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
+    this.playerHpBar = this.add.rectangle(120, 394, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
     this.playerHpFill = this.add.rectangle(
       120 - 70 + (this.player.getHpRatio() * 140) / 2,
-      190,
+      394,
       this.player.getHpRatio() * 140,
       14,
       0x44ff44
     ).setOrigin(0.5);
 
-    this.playerHpText = this.add.text(120, 190, `${this.player.hp}/${this.player.maxHp}`, {
+    this.playerHpText = this.add.text(120, 394, `${this.player.hp}/${this.player.maxHp}`, {
       fontSize: '11px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
 
     // --- Enemy side (right) ---
-    this.add.text(650, 30, this.enemy.name, {
+    this.add.text(650, 245, this.enemy.name, {
       fontSize: '18px', fontFamily: 'Arial Black',
-      color: this.isBoss ? '#ff4444' : '#ff8844', // Red for bosses, orange for normals
+      color: this.isBoss ? '#ff4444' : '#ff8844', stroke: '#000000',strokeThickness: 4,// Red for bosses, orange for normals
     }).setOrigin(0.5);
 
     // Boss sprites are drawn larger to convey difficulty
     //const enemySize = this.isBoss ? 50 : 35;
-    this.enemySprite = this.add.sprite(650, 120, `${this.enemyKey}_Idle`);
+    this.enemySprite = this.add.sprite(650, 324, `${this.enemyKey}_Idle`);
     this.enemySprite.setScale(4);
     this.enemySprite.play(`${this.enemyKey}_Idle`);
 
@@ -337,32 +381,37 @@ export default class CombatScene extends Phaser.Scene {
     }
 
     // Enemy HP bar
-    this.enemyHpBar = this.add.rectangle(650, 190, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
+    this.enemyHpBar = this.add.rectangle(650, 394, 140, 16, 0x333333).setStrokeStyle(1, 0x666666);
     this.enemyHpFill = this.add.rectangle(
       650 - 70 + (this.enemy.getHpRatio() * 140) / 2,
-      190,
+      394,
       this.enemy.getHpRatio() * 140,
       14,
       0xff4444
     ).setOrigin(0.5);
 
-    this.enemyHpText = this.add.text(650, 190, `${this.enemy.hp}/${this.enemy.maxHp}`, {
+    this.enemyHpText = this.add.text(650, 394, `${this.enemy.hp}/${this.enemy.maxHp}`, {
       fontSize: '11px', fontFamily: 'Arial', color: '#ffffff',
     }).setOrigin(0.5);
 
     // --- Timer bar (center) ---
     // Visible only while a math problem is active; color reflects time zone
-    this.add.text(400, 225, 'TIMER', {
-      fontSize: '12px', fontFamily: 'Arial', color: '#888888',
-    }).setOrigin(0.5);
-    this.timerBarBg = this.add.rectangle(400, 245, 500, 20, 0x333333).setStrokeStyle(1, 0x666666);
-    this.timerBarFill = this.add.rectangle(150, 245, 500, 18, 0x00ff00).setOrigin(0, 0.5);
+    this.timerBarBg = this.add.rectangle(400, 81, 500, 20, 0x333333).setStrokeStyle(1, 0x666666);
+    this.timerBarFill = this.add.rectangle(150, 81, 500, 18, 0x00ff00).setOrigin(0, 0.5);
     this.timerBarFill.setVisible(false);
+    this.add.text(400, 81, 'TIMER', {
+      fontSize: '12px', fontFamily: 'Arial', color: '#ffffffff',
+    }).setOrigin(0.5);
 
     // Math problem display — replaced each turn with a generated question
-    this.problemText = this.add.text(400, 290, 'Select a card to begin', {
-      fontSize: '24px', fontFamily: 'Arial Black', color: '#ffffff',
+    // this.problemText = this.add.text(400, 51, 'Select a card to begin', {
+    //   fontSize: '25px', fontFamily: 'Arial Black', color: '#000000ff',
+    // }).setOrigin(0.5);
+    this.problemText = this.add.text(400, 51, 'Select a card to begin', {
+      fontSize: '24px', fontFamily: 'Arial Black', color: '#ffffff', stroke: '#000000',strokeThickness: 4,
     }).setOrigin(0.5);
+    
+    
 
     // Answer input box — shown only while MATH_PROBLEM state is active
     this.inputBg = this.add.rectangle(400, 340, 200, 40, 0x222244, 0.9)
@@ -373,7 +422,7 @@ export default class CombatScene extends Phaser.Scene {
 
     // Message area — shows result feedback and enemy action descriptions
     this.messageText = this.add.text(400, 385, '', {
-      fontSize: '14px', fontFamily: 'Arial', color: '#ffcc00',
+      fontSize: '14px', fontFamily: 'Arial', color: '#ffcc00',stroke: '#000000',strokeThickness: 4,
       wordWrap: { width: 600 }, align: 'center',
     }).setOrigin(0.5);
   }
@@ -761,7 +810,7 @@ export default class CombatScene extends Phaser.Scene {
           msg += `\n${this.enemy.name} attacks for ${damage} damage!`;
         }
       }
-  
+
       if (!evaded) {
         this.playerSprite.play(`${this.skinKey}_Hurt`);
 

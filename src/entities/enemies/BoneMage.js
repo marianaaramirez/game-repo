@@ -40,9 +40,9 @@ export default class BoneMage extends BaseEnemy {
 
       anims: {
         Idle: { start: 8, end: 11, fps: 8, loop: true },
-        Attack: { start: 16, end: 23, fps: 12, loop: false },
-        Hurt: { start: 8, end: 11, fps: 10, loop: false },
-        Death: { start: 20, end: 29, fps: 8, loop: false }
+        Attack: { start: 16, end: 23, fps: 8, loop: false },
+        Hurt: { start: 8, end: 11, fps: 8, loop: false },
+        Death: { start: 20, end: 29, fps: 4, loop: false }
       }
     };
   }

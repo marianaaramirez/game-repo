@@ -40,9 +40,9 @@ export default class CardThief extends BaseEnemy {
 
       anims: {
         Idle: { start: 8, end: 11, fps: 8, loop: true },
-        Attack: { start: 10, end: 14, fps: 12, loop: false },
-        Hurt: { start: 8, end: 11, fps: 10, loop: false },
-        Death: { start: 12, end: 17, fps: 8, loop: false }
+        Attack: { start: 10, end: 14, fps: 6, loop: false },
+        Hurt: { start: 8, end: 11, fps: 8, loop: false },
+        Death: { start: 12, end: 17, fps: 4, loop: false }
       }
     };
   }
