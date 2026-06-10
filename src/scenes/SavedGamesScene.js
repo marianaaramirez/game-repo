@@ -65,7 +65,7 @@ export default class SavedGamesScene extends Phaser.Scene {
       return;
     }
 
-    this.add.text(400, 95, `${runs.length} save${runs.length === 1 ? '' : 's'} available`, {
+    this.add.text(400, 75, `${runs.length} save${runs.length === 1 ? '' : 's'} available`, {
       fontSize: '13px', fontFamily: 'Arial', color: '#aaaaaa',
     }).setOrigin(0.5);
 
