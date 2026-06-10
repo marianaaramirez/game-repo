@@ -70,7 +70,7 @@ export default class DeckBuildScene extends Phaser.Scene {
     // Build the starting collection only the first time (empty collection).
     if (player.collection.length === 0) {
       const starter = CardFactory.createStarterDeck(this.worldLevel);
-      const loader  = this.registry.get('authMode') === 'online'
+      const loader = this.registry.get('authMode') === 'online'
         ? showLoading(this, 'Saving starter deck')
         : null;
       for (const card of starter) {
@@ -92,9 +92,9 @@ export default class DeckBuildScene extends Phaser.Scene {
           this.registry.set('currentEnemy', enemy);
           this.registry.set('isBoss', !!snap.isBoss);
           this.scene.start('CombatScene', {
-            worldLevel:    this.worldLevel,
-            nodeIndex:     snap.nodeIndex,
-            battleNumber:  snap.battleNumber,
+            worldLevel: this.worldLevel,
+            nodeIndex: snap.nodeIndex,
+            battleNumber: snap.battleNumber,
             combatRestore: snap,
           });
           return;
@@ -117,8 +117,8 @@ export default class DeckBuildScene extends Phaser.Scene {
     const handSize = Math.min(4, totalCards);
     this.add.text(400, 84,
       `${totalCards} cards — first ${handSize} in hand, rest queue up. Click two cards to swap.`, {
-        fontSize: '13px', fontFamily: 'Arial', color: '#88ffaa',
-      }).setOrigin(0.5);
+      fontSize: '13px', fontFamily: 'Arial', color: '#88ffaa',
+    }).setOrigin(0.5);
 
     // --- Collection grid (ordered) ---
     this.renderCollection();
@@ -144,7 +144,13 @@ export default class DeckBuildScene extends Phaser.Scene {
     if (canEnter) {
       enterBg.setInteractive({ useHandCursor: true });
       enterBg.on('pointerdown', () => {
-        this.scene.start('MapScene', { worldLevel: this.worldLevel });
+        const music = this.sound.get('musicAll');
+        if (music && music.isPlaying) {
+          music.stop();
+        }
+        this.scene.start('MapScene', {
+          worldLevel: this.worldLevel
+        });
       });
     }
   }
@@ -155,27 +161,27 @@ export default class DeckBuildScene extends Phaser.Scene {
    * Click two cards to swap their positions.
    */
   renderCollection() {
-    const cards   = this.player.deck;
-    const cardW   = 108;
-    const cardH   = 148;
-    const perRow  = 6;
-    const gapX    = 8;
-    const gapY    = 14;
-    const startX  = 400 - ((perRow - 1) * (cardW + gapX)) / 2;
-    const startY  = 188;
+    const cards = this.player.deck;
+    const cardW = 108;
+    const cardH = 148;
+    const perRow = 6;
+    const gapX = 8;
+    const gapY = 14;
+    const startX = 400 - ((perRow - 1) * (cardW + gapX)) / 2;
+    const startY = 188;
 
     cards.forEach((card, i) => {
       const row = Math.floor(i / perRow);
       const col = i % perRow;
-      const x   = startX + col * (cardW + gapX);
-      const y   = startY + row * (cardH + gapY);
+      const x = startX + col * (cardW + gapX);
+      const y = startY + row * (cardH + gapY);
 
-      const inHand    = i < 4;
+      const inHand = i < 4;
       const isSelected = this.selectedSwapIndex === i;
 
       // Visual: hand cards bright + gold, queue cards dim, selected = orange
       const borderColor = isSelected ? 0xff6600 : (inHand ? 0xffcc00 : 0x666666);
-      const alpha       = isSelected ? 0.95 : (inHand ? 0.85 : 0.4);
+      const alpha = isSelected ? 0.95 : (inHand ? 0.85 : 0.4);
 
       const bg = this.add.rectangle(x, y, cardW, cardH, card.getColor(), alpha)
         .setStrokeStyle(isSelected ? 5 : (inHand ? 4 : 2), borderColor)
@@ -252,16 +258,16 @@ export default class DeckBuildScene extends Phaser.Scene {
    * Renders the player's skill cards as a horizontal clickable row (unchanged).
    */
   renderSkillCards() {
-    const skills  = this.player.skillCards;
-    const cardW   = 108;
-    const cardH   = 110;
-    const gap     = 12;
-    const totalW  = skills.length * (cardW + gap) - gap;
-    const startX  = 400 - totalW / 2 + cardW / 2;
-    const y       = 448;
+    const skills = this.player.skillCards;
+    const cardW = 108;
+    const cardH = 110;
+    const gap = 12;
+    const totalW = skills.length * (cardW + gap) - gap;
+    const startX = 400 - totalW / 2 + cardW / 2;
+    const y = 448;
 
     skills.forEach((card, i) => {
-      const x        = startX + i * (cardW + gap);
+      const x = startX + i * (cardW + gap);
       const equipped = this.player.selectedSkill === card;
 
       const bg = this.add.rectangle(x, y, cardW, cardH, 0xaa6600,

@@ -22,19 +22,45 @@ import MapSystem from '../systems/MapSystem.js';
 import EnemyFactory from '../entities/enemies/EnemyFactory.js';
 import { updateRun, wipeDeck } from '../api.js';
 import { drawConnectionBadge, drawBackButton } from '../ui/uiHelpers.js';
+import wastelandMusic from '../assets/Audio/Wasteland.wav';
+import templeMusic from '../assets/Audio/Temple.wav';
+import castleMusic from '../assets/Audio/Castle.wav';
+import templeMap from '../assets/Backgrounds/Temple/TempleMap.png';
+import castleMap from '../assets/Backgrounds/Castle/CastleMap.png';
+import wastelandMap from '../assets/Backgrounds/Wasteland/WastelandMap.png';
+
+const WORLD_MUSIC = {
+  1: templeMusic,
+  2: castleMusic,
+  3: wastelandMusic
+};
+
+const WORLD_BACKGROUNDS = {
+  1: templeMap,
+  2: castleMap,
+  3: wastelandMap
+};
 
 // Visual theme per world: background color, node color, display name
 const WORLD_COLORS = {
   1: { bg: '#1a2a1a', node: 0x44aa44, name: 'Ancient Temple' },
-  2: { bg: '#1a1a2a', node: 0x4444aa, name: 'Castle'         },
-  3: { bg: '#2a1a1a', node: 0xaa4444, name: 'Wasteland'      },
+  2: { bg: '#1a1a2a', node: 0x4444aa, name: 'Castle' },
+  3: { bg: '#2a1a1a', node: 0xaa4444, name: 'Wasteland' },
 };
 
 export default class MapScene extends Phaser.Scene {
   constructor() {
     super('MapScene');
   }
-
+  preload() {
+    //this.load.audio('wastelandMusic', wastelandMusic);
+    Object.entries(WORLD_MUSIC).forEach(([world, file]) => {
+      this.load.audio(`worldMusic${world}`, file);
+    });
+    Object.entries(WORLD_BACKGROUNDS).forEach(([world, file]) => {
+      this.load.image(`worldBg${world}`, file);
+    });
+  }
   /**
    * Receives worldLevel from the previous scene.
    * {{ worldLevel: number }} data
@@ -44,12 +70,34 @@ export default class MapScene extends Phaser.Scene {
   }
 
   create() {
+
+    const musicKey = `worldMusic${this.worldLevel}`;
+    this.bgMusic = this.sound.add(musicKey, {
+      volume: 0.4,
+      loop: true
+    });
+    this.bgMusic.play();
+    this.events.on('shutdown', () => {
+      if (this.bgMusic) {
+        this.bgMusic.stop();
+      }
+    });
+
     const colors = WORLD_COLORS[this.worldLevel] || WORLD_COLORS[1];
-    this.cameras.main.setBackgroundColor(colors.bg);
+    const bgKey = `worldBg${this.worldLevel}`;
+    const bg = this.add.image(400, 300, bgKey);
+    // Ajusta la imagen para cubrir toda la pantalla
+    bg.setDisplaySize(
+      this.cameras.main.width,
+      this.cameras.main.height
+    );
+    bg.setDepth(-100);
+    //this.cameras.main.setBackgroundColor(colors.bg);
     drawConnectionBadge(this);
     drawBackButton(this, 'LevelSelectScene', {
       confirmMessage: 'Abandon this run? Your collection is preserved.',
       onBeforeNavigate: () => this.abandonRun(),
+
     });
 
     // Reuse existing map for this world, or generate a new one
@@ -69,7 +117,7 @@ export default class MapScene extends Phaser.Scene {
           map.currentNode = saved.currentNode;
         }
         this.registry.set('savedMapState', null);
-        this.registry.set('resumingRun',   false);
+        this.registry.set('resumingRun', false);
       }
 
       this.registry.set('currentMap', map);
@@ -85,7 +133,7 @@ export default class MapScene extends Phaser.Scene {
     const player = this.registry.get('player');
     if (player) {
       this.add.text(400, 60, `HP: ${player.hp}/${player.maxHp}  Level: ${player.level}`, {
-        fontSize: '14px', fontFamily: 'Arial', color: '#aaaaaa',
+        fontSize: '14px', fontFamily: 'Arial', color: '#ffcc00',
       }).setOrigin(0.5);
     }
 
@@ -107,26 +155,26 @@ export default class MapScene extends Phaser.Scene {
     // Draw each node circle with appropriate color, label, and interactivity
     map.nodes.forEach((node) => {
       let nodeColor = colors.node;
-      let radius    = 20;
-      let label     = '?';
+      let radius = 20;
+      let label = '?';
 
       // Assign appearance based on node type
       if (node.type === MapSystem.NODE_TYPES.BATTLE) {
-        nodeColor = 0xff4444;
-        label     = 'B';
+        nodeColor = 0x8a2be2;
+        label = 'B';
       } else if (node.type === MapSystem.NODE_TYPES.CHEST) {
         nodeColor = 0xffaa00;
-        label     = 'C';
-        radius    = 18; // Slightly smaller than battle nodes
+        label = 'C';
+        radius = 18; // Slightly smaller than battle nodes
       } else if (node.type === MapSystem.NODE_TYPES.BOSS) {
         nodeColor = 0xff0000;
-        label     = 'BOSS';
-        radius    = 28; // Larger to emphasize importance
+        label = 'BOSS';
+        radius = 28; // Larger to emphasize importance
       }
 
       // Gray out completed nodes
       if (node.completed) {
-        nodeColor = 0x444444;
+        nodeColor = 0x000000;
       }
 
       const isAvailable = this.isNodeAvailable(map, node);
@@ -151,7 +199,7 @@ export default class MapScene extends Phaser.Scene {
         circle.setInteractive({ useHandCursor: true });
 
         circle.on('pointerover', () => circle.setStrokeStyle(3, 0xffcc00));
-        circle.on('pointerout',  () => circle.setStrokeStyle(3, 0xffffff));
+        circle.on('pointerout', () => circle.setStrokeStyle(3, 0xffffff));
 
         circle.on('pointerdown', () => {
           map.currentNode = node.id;

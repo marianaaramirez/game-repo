@@ -12,14 +12,29 @@
 import Phaser from 'phaser';
 import { clearToken } from '../api.js';
 import { drawConnectionBadge, showConfirmDialog } from '../ui/uiHelpers.js';
+import musicAll from '../assets/Audio/All.wav';
 
 export default class HomeScene extends Phaser.Scene {
   constructor() {
     super('HomeScene');
   }
 
+  preload() {
+    this.load.audio('musicAll', musicAll);
+  }
+
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
+
+    let music = this.sound.get('musicAll');
+    if (!music) {
+      music = this.sound.add('musicAll', {
+        volume: 1.5,
+        loop: true
+      });
+      music.play();
+    }
+    this.bgMusic = music;
 
     // Main title — title block + button block balanced around canvas vertical center.
     // Gap above title (~140px from logout) ≈ gap below STATS (~140px from bottom edge).
@@ -30,6 +45,9 @@ export default class HomeScene extends Phaser.Scene {
       stroke: '#000',
       strokeThickness: 6,
     }).setOrigin(0.5);
+
+    //const musicKey = 'musicAll';
+
 
     // Subtitle below the main title
     const subtitle = this.add.text(400, 275, 'Card Adventure', {
@@ -57,18 +75,18 @@ export default class HomeScene extends Phaser.Scene {
         fontSize: '13px', fontFamily: 'Arial Black', color: '#ffffff',
       }).setOrigin(0.5);
       logoutBg.on('pointerover', () => logoutBg.setFillStyle(0xcc4444, 1));
-      logoutBg.on('pointerout',  () => logoutBg.setFillStyle(0xaa3333, 0.85));
+      logoutBg.on('pointerout', () => logoutBg.setFillStyle(0xaa3333, 0.85));
       logoutBg.on('pointerdown', () => this.confirmLogout());
     }
 
     // Main navigation — primary row (large) + secondary row (small).
     // Primary:    PLAY               LOAD GAME
     // Secondary:  INSTRUCTIONS  STATS  OPTIONS
-    this.createButton(285, 360, 'PLAY',      () => this.scene.start('CharSelectScene'));
+    this.createButton(285, 360, 'PLAY', () => this.scene.start('CharSelectScene'));
     this.createButton(515, 360, 'LOAD GAME', () => this.scene.start('SavedGamesScene'));
     this.createSmallButton(220, 450, 'INSTRUCTIONS', () => this.scene.start('InstructionsScene'));
-    this.createSmallButton(400, 450, 'STATS',        () => this.scene.start('StatsScene'));
-    this.createSmallButton(580, 450, 'OPTIONS',      () => this.scene.start('OptionsScene'));
+    this.createSmallButton(400, 450, 'STATS', () => this.scene.start('StatsScene'));
+    this.createSmallButton(580, 450, 'OPTIONS', () => this.scene.start('OptionsScene'));
 
     // Idle floating animation on the title — loops between y=220 and y=230
     this.tweens.add({
@@ -96,16 +114,16 @@ export default class HomeScene extends Phaser.Scene {
   handleLogout() {
     clearToken();
     // Wipe ALL session-scoped registry state so the next user starts clean
-    this.registry.set('playerID',           null);
-    this.registry.set('username',           null);
-    this.registry.set('authMode',           null);
-    this.registry.set('runID',              null);
-    this.registry.set('player',             null);
-    this.registry.set('currentMap',         null);
-    this.registry.set('runStartTime',       null);
+    this.registry.set('playerID', null);
+    this.registry.set('username', null);
+    this.registry.set('authMode', null);
+    this.registry.set('runID', null);
+    this.registry.set('player', null);
+    this.registry.set('currentMap', null);
+    this.registry.set('runStartTime', null);
     this.registry.set('runEnemiesDefeated', null);
-    this.registry.set('clearedLevels',      []);
-    this.registry.set('selectedSkin',       null);
+    this.registry.set('clearedLevels', []);
+    this.registry.set('selectedSkin', null);
     this.scene.start('LoginScene');
   }
 
@@ -156,7 +174,7 @@ export default class HomeScene extends Phaser.Scene {
       fontSize: '14px', fontFamily: 'Arial Black', color: '#ffffff',
     }).setOrigin(0.5);
     bg.on('pointerover', () => { bg.setFillStyle(0x5577cc, 1); text.setScale(1.05); });
-    bg.on('pointerout',  () => { bg.setFillStyle(0x4466aa, 0.85); text.setScale(1); });
+    bg.on('pointerout', () => { bg.setFillStyle(0x4466aa, 0.85); text.setScale(1); });
     bg.on('pointerdown', callback);
     return { bg, text };
   }

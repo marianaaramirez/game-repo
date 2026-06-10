@@ -66,6 +66,8 @@ import wasteland3 from '../assets/Backgrounds/Wasteland/Wasteland_3.png';
 import wasteland4 from '../assets/Backgrounds/Wasteland/Wasteland_4.png';
 import wasteland5 from '../assets/Backgrounds/Wasteland/Wasteland_5.png';
 
+import combatMusic from '../assets/Audio/Combat.wav';
+import bossMusic from '../assets/Audio/FinalBoss.wav';
 
 const SPRITES = {
   warrior: {
@@ -122,6 +124,9 @@ export default class CombatScene extends Phaser.Scene {
     this.load.image('world3_4', wasteland4);
     this.load.image('world3_5', wasteland5);
 
+    this.load.audio('combatMusic', combatMusic);
+    this.load.audio('bossMusic', bossMusic);
+
     Object.entries(SPRITES).forEach(([skin, animations]) => {
       Object.entries(animations).forEach(([anim, asset]) => {
         this.load.spritesheet(
@@ -170,6 +175,12 @@ export default class CombatScene extends Phaser.Scene {
     this.enemy = this.registry.get('currentEnemy');
     this.enemyKey = this.enemy.getSpriteKey();
     this.isBoss = this.registry.get('isBoss') || false;
+    const musicKey = this.isBoss ? 'bossMusic' : 'combatMusic';
+    this.bgMusic = this.sound.add(musicKey, {
+      volume: 0.5,
+      loop: true
+    });
+    this.bgMusic.play();
 
     const skins = ['warrior', 'mage', 'rogue'];
     this.skinKey = skins[this.player.skinIndex] || 'warrior';
@@ -185,9 +196,9 @@ export default class CombatScene extends Phaser.Scene {
     // When a card is used, it exits the hand → usedPile. Next card from queue enters.
     // When queue is empty, usedPile recycles back into queue.
     const orderedCards = [...this.player.deck]; // copy to avoid mutating player state
-    this.cardHand  = orderedCards.slice(0, 4);
+    this.cardHand = orderedCards.slice(0, 4);
     this.cardQueue = orderedCards.slice(4);
-    this.usedPile  = [];
+    this.usedPile = [];
 
     // --- Combat state ---
     this.combatState = CombatSystem.COMBAT_STATE.SELECT_CARD;
@@ -254,6 +265,13 @@ export default class CombatScene extends Phaser.Scene {
     if (this.trapChallenge) {
       this.startTrapChallenge();
     }
+
+    this.events.on('shutdown', () => {
+      if (this.bgMusic) {
+        this.bgMusic.stop();
+        this.bgMusic.destroy();
+      }
+    });
   }
 
   createAnimations() {
@@ -340,7 +358,7 @@ export default class CombatScene extends Phaser.Scene {
   drawBattleUI() {
     // --- Player side (left) ---
     this.add.text(120, 245, this.player.name, {
-      fontSize: '18px', fontFamily: 'Arial Black', color: '#44aaff',stroke: '#000000',strokeThickness: 4,
+      fontSize: '18px', fontFamily: 'Arial Black', color: '#44aaff', stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5);
 
     const skinMap = ['warrior', 'mage', 'rogue'];
@@ -367,7 +385,7 @@ export default class CombatScene extends Phaser.Scene {
     // --- Enemy side (right) ---
     this.add.text(650, 245, this.enemy.name, {
       fontSize: '18px', fontFamily: 'Arial Black',
-      color: this.isBoss ? '#ff4444' : '#ff8844', stroke: '#000000',strokeThickness: 4,// Red for bosses, orange for normals
+      color: this.isBoss ? '#ff4444' : '#ff8844', stroke: '#000000', strokeThickness: 4,// Red for bosses, orange for normals
     }).setOrigin(0.5);
 
     // Boss sprites are drawn larger to convey difficulty
@@ -411,10 +429,10 @@ export default class CombatScene extends Phaser.Scene {
     //   fontSize: '25px', fontFamily: 'Arial Black', color: '#000000ff',
     // }).setOrigin(0.5);
     this.problemText = this.add.text(400, 51, 'Select a card to begin', {
-      fontSize: '24px', fontFamily: 'Arial Black', color: '#ffffff', stroke: '#000000',strokeThickness: 4,
+      fontSize: '24px', fontFamily: 'Arial Black', color: '#ffffff', stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5);
-    
-    
+
+
 
     // Answer input box — shown only while MATH_PROBLEM state is active
     this.inputBg = this.add.rectangle(400, 340, 200, 40, 0x222244, 0.9)
@@ -425,7 +443,7 @@ export default class CombatScene extends Phaser.Scene {
 
     // Message area — shows result feedback and enemy action descriptions
     this.messageText = this.add.text(400, 385, '', {
-      fontSize: '14px', fontFamily: 'Arial', color: '#ffcc00',stroke: '#000000',strokeThickness: 4,
+      fontSize: '14px', fontFamily: 'Arial', color: '#ffcc00', stroke: '#000000', strokeThickness: 4,
       wordWrap: { width: 600 }, align: 'center',
     }).setOrigin(0.5);
   }
@@ -460,7 +478,7 @@ export default class CombatScene extends Phaser.Scene {
       // Type badge (ATK / DEF / SKL)
       let typeLabel = 'ATK';
       if (card.type === CARD_TYPES.DEFENSE) typeLabel = 'DEF';
-      if (card.type === CARD_TYPES.SKILL)   typeLabel = 'SKL';
+      if (card.type === CARD_TYPES.SKILL) typeLabel = 'SKL';
 
       const typeTxt = this.add.text(x, y - 45, typeLabel, {
         fontSize: '10px', fontFamily: 'Arial Black', color: '#ffffff',
@@ -485,7 +503,7 @@ export default class CombatScene extends Phaser.Scene {
       if (card.maxUsesPerLevel) {
         const usesColor = isDepleted ? '#ff4444'
           : card.usesRemaining === 1 ? '#ffaa00'
-          : '#88ff88';
+            : '#88ff88';
         const usesTxt = this.add.text(x, y + 42, `${card.usesRemaining}/${card.maxUsesPerLevel}`, {
           fontSize: '11px', fontFamily: 'Arial Black', color: usesColor,
           backgroundColor: '#00000099', padding: { x: 4, y: 1 },
@@ -1082,7 +1100,7 @@ export default class CombatScene extends Phaser.Scene {
       this.player.onDefeat();              // HP/level reset, cards preserved
       this.registry.set('currentMap', null); // Force new map on next run
       this.scene.start('DefeatScene', {
-        enemyName:  this.enemy.name,
+        enemyName: this.enemy.name,
         worldLevel: this.worldLevel,
       });
     });
