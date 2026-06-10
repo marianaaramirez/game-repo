@@ -197,3 +197,5 @@ export function showToast(scene, message, type = 'info', durationMs = 2400) {
     });
   });
 }
+
+// AI tool used for code commenting: Claude (Anthropic)

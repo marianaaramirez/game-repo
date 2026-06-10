@@ -136,3 +136,5 @@ router.get('/leaderboard', async (req, res) => {
 });
 
 export default router;
+
+// AI tool used for code commenting: Claude (Anthropic)

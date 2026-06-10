@@ -294,3 +294,5 @@ export default class LoginScene extends Phaser.Scene {
     this.scene.start('HomeScene');
   }
 }
+
+// AI tool used for code commenting: Claude (Anthropic)

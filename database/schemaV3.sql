@@ -192,3 +192,5 @@ CREATE TABLE IF NOT EXISTS PlayerStats (
   UNIQUE KEY uniq_player_world (playerID, world_number),
   FOREIGN KEY (playerID) REFERENCES Player(playerID) ON DELETE CASCADE
 );
+
+-- AI tool used for code commenting: Claude (Anthropic)

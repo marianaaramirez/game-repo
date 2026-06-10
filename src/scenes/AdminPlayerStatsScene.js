@@ -138,3 +138,5 @@ export default class AdminPlayerStatsScene extends Phaser.Scene {
     return `${m}m ${sec}s`;
   }
 }
+
+// AI tool used for code commenting: Claude (Anthropic)

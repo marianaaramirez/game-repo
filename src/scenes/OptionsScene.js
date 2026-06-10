@@ -133,3 +133,5 @@ export default class OptionsScene extends Phaser.Scene {
     return bg;
   }
 }
+
+// AI tool used for code commenting: Claude (Anthropic)

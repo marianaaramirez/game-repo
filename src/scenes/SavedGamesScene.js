@@ -164,3 +164,5 @@ export default class SavedGamesScene extends Phaser.Scene {
     });
   }
 }
+
+// AI tool used for code commenting: Claude (Anthropic)

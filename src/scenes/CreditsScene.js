@@ -60,3 +60,4 @@ export default class CreditsScene extends Phaser.Scene {
     backBg.on('pointerdown', () => this.scene.start('HomeScene'));
   }
 }
+// AI tool used for code commenting: Claude (Anthropic)
