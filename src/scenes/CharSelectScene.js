@@ -23,8 +23,8 @@ import rogueImg from '../assets/Player_sprites/rogue.png';
 // Skin definitions: name, color, and short description shown below character
 const SKINS = [
   { name: 'Warrior', sprite: 'warrior', desc: '+3s on every timer' },
-  { name: 'Mage',    sprite: 'mage', desc: 'Easier math problems' },
-  { name: 'Rogue',   sprite: 'rogue', desc: 'Double effect every 2 answers' },
+  { name: 'Mage', sprite: 'mage', desc: 'Easier math problems' },
+  { name: 'Rogue', sprite: 'rogue', desc: 'Double effect every 2 answers' },
 ];
 
 export default class CharSelectScene extends Phaser.Scene {
@@ -33,10 +33,10 @@ export default class CharSelectScene extends Phaser.Scene {
   }
 
   preload() {
-  this.load.image('warrior', warriorImg);
-  this.load.image('mage', mageImg);
-  this.load.image('rogue', rogueImg);
-}
+    this.load.image('warrior', warriorImg);
+    this.load.image('mage', mageImg);
+    this.load.image('rogue', rogueImg);
+  }
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
@@ -57,15 +57,9 @@ export default class CharSelectScene extends Phaser.Scene {
     SKINS.forEach((skin, i) => {
       const x = 150 + i * 250; // Evenly spaced across the screen
       const y = 280;
-      const isLast      = (i === lastSkin);
+      const isLast = (i === lastSkin);
       const defaultBorder = isLast ? 0xffcc00 : 0xffffff;
 
-      // // Body rectangle
-      // const body = this.add.rectangle(x, y, 80, 100, skin.color, 0.9)
-      //   .setStrokeStyle(3, defaultBorder);
-      // // Head circle, positioned above the body
-      // const head = this.add.circle(x, y - 70, 30, skin.color)
-      //   .setStrokeStyle(3, defaultBorder);
       const character = this.add.image(x, y + 30, skin.sprite).setScale(4).setOrigin(0.5, 1);
       // "LAST USED" tag on the persisted choice
       if (isLast) {
@@ -74,9 +68,6 @@ export default class CharSelectScene extends Phaser.Scene {
           backgroundColor: '#ffcc00', padding: { x: 5, y: 2 },
         }).setOrigin(0.5);
       }
-      // // Eyes (two small white circles)
-      // this.add.circle(x - 10, y - 75, 4, 0xffffff);
-      // this.add.circle(x + 10, y - 75, 4, 0xffffff);
 
       // Character name and description labels      
       this.add.text(x, y + 75, skin.name, {
@@ -100,12 +91,14 @@ export default class CharSelectScene extends Phaser.Scene {
 
       // Un-hover: restore default outline (gold if persisted, white otherwise)
       hitArea.on('pointerout', () => {
-        // body.setStrokeStyle(3, defaultBorder);
-        // head.setStrokeStyle(3, defaultBorder);
         character.setScale(4);
       });
       // Click: save selection and advance to instructions
       hitArea.on('pointerdown', () => {
+        const player = this.registry.get('player');   //Actualiza skin
+        if (player) {
+          player.skinIndex = i;
+        }
         this.registry.set('selectedSkin', i);
         this.scene.start('LevelSelectScene');
       });
@@ -120,5 +113,5 @@ export default class CharSelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
     backBg.on('pointerdown', () => this.scene.start('HomeScene'));
   }
-  
+
 }
