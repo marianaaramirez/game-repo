@@ -61,6 +61,24 @@ game-repo/
 │   │   ├── DefenseCard.js            # 8 per world × 3 worlds (24 DEF total)
 │   │   ├── SkillCard.js              # 5 boss-reward skill cards (2 uses/combat)
 │   │   └── CardFactory.js            # Starter deck + unique reward card generation
+│   ├── assets/                       # Game assets
+│   │   ├── Audio/                    # Background music + combat audio (WAV)
+│   │   │   ├── All.wav               # HomeScene ambient music
+│   │   │   ├── Temple.wav            # World 1 map music
+│   │   │   ├── Castle.wav            # World 2 map music
+│   │   │   ├── Wasteland.wav         # World 3 map music
+│   │   │   ├── Combat.wav            # Normal battle music
+│   │   │   └── FinalBoss.wav         # Boss battle music
+│   │   ├── Backgrounds/              # World background PNGs
+│   │   │   ├── Temple/               # World 1 — 5 combat layers + TempleMap.png
+│   │   │   ├── Castle/               # World 2 — 5 combat layers + CastleMap.png
+│   │   │   └── Wasteland/            # World 3 — 5 combat layers + WastelandMap.png
+│   │   ├── Enemy_sprites/            # Spritesheet PNGs per enemy (Idle/Attack/Hurt/Death)
+│   │   │   ├── Slime/ Spider/ Skeleton/ Golem/ PredatorPlant/ EvilBat/
+│   │   │   ├── CardThief/ Swapper/
+│   │   │   └── VampireKing/ BoneMage/ Titan/
+│   │   └── Player_sprites/           # Spritesheet PNGs per skin (Idle/Attack/Hurt/Death)
+│   │       ├── Warrior/ Mage/ Rogue/
 │   └── ui/
 │       └── uiHelpers.js              # Shared UI (badge, loading, confirm, toast, back)
 ├── server/                           # Backend (Express)
@@ -300,10 +318,13 @@ LoginScene → HomeScene → CharSelectScene → LevelSelectScene
           SavedGamesScene              DeckBuildScene → MapScene
           InstructionsScene                              ↓
           StatsScene                               CombatScene
-          OptionsScene                                   ↓
-                                                   RewardScene → DeckBuildScene (loop)
-                                                        ↓ (boss win)
-                                                   LevelSelectScene
+          OptionsScene                              ↓         ↓ (lose)
+                                               RewardScene  DefeatScene
+                                                   ↓            ↓
+                                           DeckBuildScene  LevelSelectScene
+                                           (loop)          or HomeScene
+                                               ↓ (boss win)
+                                           LevelSelectScene
 ```
 
 ### Admin Flow
@@ -347,23 +368,22 @@ Math difficulty scales per battle (tier 1–5), not per map node.
 Turn-based loop: **SELECT CARD → MATH PROBLEM → EVALUATE → ENEMY TURN → repeat**
 
 - **Timer zones**: Green (>66% time) = 100% effect | Yellow (33-66%) = 75% | Red (<33%) = 50% | Timeout = 0%
-- **Card uses**: Attack/Defense cards have 3 uses per combat. Skill cards have 2 uses per combat. Resets each battle.
+- **Card cycling**: ATK/DEF cards cycle — used card moves to a used pile, next card from queue enters hand. No per-combat limit. Skill cards have 2 uses per combat and reset each battle.
 - **Skill cards**: Activate immediately without a math problem. Obtained by defeating bosses. Persist through defeats.
 
 ### Cards
 
-**Attack cards** (7 per world, 21 total):
+**Attack cards** (6 per world, 18 total):
 
 | Special | Effect |
 |---------|--------|
 | `none` | Plain damage |
 | `lifesteal` | Deals damage + heals player 50% |
 | `reckless` | High damage + 4 recoil to self |
-| `pierce` | Ignores Slime's effectiveness debuff |
 | `crit` | 25% chance for 2× damage |
 | `bleed` | Damage + DoT over 2-3 turns |
 
-**Defense cards** (9 per world, 27 total):
+**Defense cards** (8 per world, 24 total):
 
 | Special | Effect |
 |---------|--------|
@@ -372,7 +392,6 @@ Turn-based loop: **SELECT CARD → MATH PROBLEM → EVALUATE → ENEMY TURN → 
 | `counter` | Block + reflect 50% back |
 | `reflect` | No block — reflects 100% at enemy |
 | `regen` | Block + HoT (3-6 HP × 2-3 turns) |
-| `taunt` | Block + 50% force enemy skill |
 | `evade` | Block + 30% dodge next attack |
 | `barrier` | Block + defense persists 1 extra turn |
 
@@ -554,11 +573,14 @@ ON DELETE CASCADE removes all related Run, Combat, ProblemStats, and DeckCard ro
 - ✅ World 1 hand-authored 9-node diamond layout
 - ✅ Turn-based combat with timer-based scoring (Green / Yellow / Red zones)
 - ✅ Progressive math difficulty per battle (5 tiers per world, 3 worlds)
-- ✅ 21 attack cards with 6 special mechanics (lifesteal, reckless, pierce, crit, bleed)
-- ✅ 27 defense cards with 8 special mechanics (heal, counter, reflect, regen, taunt, evade, barrier)
-- ✅ 5 skill cards as boss rewards (persist through defeats)
-- ✅ 6 basic enemies + 2 trap enemies + 3 bosses (each with unique skills)
-- ✅ Card usage limits (3 per combat for ATK/DEF, 2 for skill cards)
+- ✅ 18 attack cards with 5 special mechanics (lifesteal, reckless, crit, bleed, none)
+- ✅ 24 defense cards with 8 special mechanics (heal, counter, reflect, regen, evade, barrier, none ×2)
+- ✅ 5 skill cards as boss rewards (persist through defeats, 2 uses/combat)
+- ✅ 6 basic enemies + 2 trap enemies + 3 bosses — each with animated sprites (Idle/Attack/Hurt/Death)
+- ✅ Player sprites per character class (Warrior/Mage/Rogue) with combat animations
+- ✅ Background images per world (5 combat layers + map background PNG — Temple, Castle, Wasteland)
+- ✅ Background music per context (map music per world, battle music, boss music)
+- ✅ Card cycling system (used cards queue up and re-enter hand, no per-combat limits for ATK/DEF)
 - ✅ Cross-session persistence (skill deck, regular deck, profile, run history)
 - ✅ Pause + resume — save mid-combat, continue exactly where you left off
 - ✅ Saved Games screen with resume / delete per save
